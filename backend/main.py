@@ -44,6 +44,6 @@ def generate(request: GenerateRequest) -> GenerateResponse:
     return generate_timetables(request)
 
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 if (FRONTEND_DIR / "index.html").exists():
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
