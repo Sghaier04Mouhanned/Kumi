@@ -40,12 +40,12 @@ async def extract(
     except ValueError:
         raise HTTPException(status_code=400, detail="group_labels must be a JSON array of strings.")
 
-    classes, warnings = await extract_from_uploads(files, labels)
+    classes, warnings, suggestions, reconcile_note = await extract_from_uploads(files, labels)
 
     if not classes and warnings:
         raise HTTPException(status_code=422, detail=[w.message for w in warnings])
 
-    return ExtractResponse(classes=classes, warnings=warnings)
+    return ExtractResponse(classes=classes, warnings=warnings, suggestions=suggestions, reconcile_note=reconcile_note)
 
 
 @app.post("/api/generate", response_model=GenerateResponse)

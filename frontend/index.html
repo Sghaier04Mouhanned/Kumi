@@ -48,6 +48,7 @@
       </div>
     </div>
     <div class="error-box" id="upload-error"></div>
+    <div class="info-text" id="reconcile-note" style="display:none"></div>
   </div>
 
   <!-- STEP 2: Review extracted data -->
@@ -55,9 +56,11 @@
     <div class="section-title">Review Extracted Data</div>
     <p class="info-text" style="margin-bottom:12px">
       Photo extraction can make mistakes — check the rows below before selecting courses.
-      Click any cell to edit it, or remove/add rows.
+      Click any cell to edit it, or remove/add rows. Cells marked ↺ were auto-corrected by AI
+      cleanup (click to undo).
     </p>
     <div class="warning-box" id="extract-warnings" style="display:none"></div>
+    <div class="suggestion-box" id="extract-suggestions" style="display:none"></div>
     <div class="table-wrapper">
       <table class="edit-table" id="review-table">
         <thead>

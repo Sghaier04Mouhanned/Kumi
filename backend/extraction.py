@@ -12,7 +12,8 @@ from fastapi import UploadFile
 from landingai_ade import AsyncLandingAIADE
 
 from backend.config import settings
-from backend.models import ClassSession, ExtractWarning
+from backend.models import ClassSession, ExtractWarning, ReconcileSuggestion
+from backend.reconcile import reconcile
 from image_to_json.schema import schema_json
 from normalize import merge_contiguous_sessions, normalize_schedule
 
@@ -46,7 +47,7 @@ async def _extract_one(client: AsyncLandingAIADE, file: UploadFile, group_overri
 
 async def extract_from_uploads(
     files: list[UploadFile], group_labels: list[str] | None = None
-) -> tuple[list[ClassSession], list[ExtractWarning]]:
+) -> tuple[list[ClassSession], list[ExtractWarning], list[ReconcileSuggestion], str | None]:
     client = AsyncLandingAIADE(apikey=settings.vision_agent_api_key or None)
     labels = group_labels or [""] * len(files)
 
@@ -94,4 +95,6 @@ async def extract_from_uploads(
         except Exception as exc:  # noqa: BLE001 - malformed row from a bad extraction
             warnings.append(ExtractWarning(filename="(extraction)", message=f"dropped malformed row: {exc}"))
 
-    return deduped, warnings
+    deduped, suggestions, reconcile_note = await reconcile(deduped)
+
+    return deduped, warnings, suggestions, reconcile_note
