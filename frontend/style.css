@@ -413,6 +413,116 @@ pre.show { display: block; }
 .info-text { font-size: 0.72rem; color: var(--muted); margin-top: 8px; line-height: 1.6; }
 
 /* =====================
+   File list (photo upload)
+   ===================== */
+.file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.file-chip {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+}
+.file-chip button {
+  background: none; border: none; color: var(--muted);
+  cursor: pointer; font-size: 0.8rem; padding: 0;
+}
+.file-chip button:hover { color: var(--accent2); }
+
+/* =====================
+   Warning box
+   ===================== */
+.warning-box {
+  background: rgba(255,202,106,0.08);
+  border: 1px solid rgba(255,202,106,0.3);
+  border-radius: 4px;
+  padding: 12px 14px;
+  color: var(--warning);
+  font-size: 0.78rem;
+  margin-bottom: 16px;
+  line-height: 1.7;
+}
+
+/* =====================
+   Editable review table
+   ===================== */
+.table-wrapper { overflow-x: auto; }
+.edit-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.edit-table th {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: left;
+  color: var(--accent);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.edit-table td { border: 1px solid var(--border); padding: 2px; }
+.edit-table input,
+.edit-table select {
+  width: 100%;
+  min-width: 70px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 8px 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  outline: none;
+}
+.edit-table input:focus,
+.edit-table select:focus { background: rgba(124,106,255,0.08); }
+.edit-table select option { background: var(--surface); }
+.row-delete {
+  background: none; border: none; color: var(--muted);
+  cursor: pointer; font-size: 0.85rem; padding: 4px 8px;
+}
+.row-delete:hover { color: var(--accent2); }
+
+/* =====================
+   Checkbox rows (preferences)
+   ===================== */
+.checkbox-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.75rem; color: var(--muted);
+  margin-bottom: 10px; cursor: pointer;
+}
+.checkbox-row input { accent-color: var(--accent); width: 14px; height: 14px; }
+
+/* =====================
+   Alternate result tabs
+   ===================== */
+.alt-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.alt-tab {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+}
+.alt-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(124,106,255,0.08); }
+.alt-score { font-family: 'Syne', sans-serif; font-weight: 700; }
+
+.score-breakdown { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.score-item {
+  font-size: 0.68rem;
+  padding: 4px 10px;
+  border-radius: 3px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  text-transform: capitalize;
+}
+.score-item.pos { color: var(--accent3); border-color: rgba(106,255,202,0.3); }
+.score-item.neg { color: var(--accent2); border-color: rgba(255,106,155,0.3); }
+
+/* =====================
    Responsive
    ===================== */
 @media (max-width: 700px) {
@@ -420,4 +530,5 @@ pre.show { display: block; }
   .summary-grid  { grid-template-columns: 1fr 1fr; }
   .header-inner  { flex-direction: column; align-items: flex-start; gap: 12px; }
   .steps         { flex-direction: column; }
+  .edit-table th, .edit-table td { font-size: 0.68rem; }
 }

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Timetable Optimizer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="header-inner">
+      <div>
+        <div class="logo">SCHED<span>AI</span></div>
+        <div class="logo-sub">University Timetable Optimizer</div>
+      </div>
+      <div class="badge">Free &amp; Deterministic</div>
+    </div>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="step1"><span class="step-num">01</span>Upload Photos</div>
+    <div class="step" id="step2"><span class="step-num">02</span>Review Data</div>
+    <div class="step" id="step3"><span class="step-num">03</span>Preferences</div>
+    <div class="step" id="step4"><span class="step-num">04</span>Result</div>
+  </div>
+
+  <!-- STEP 1: Upload photos -->
+  <div class="section" id="upload-section">
+    <div class="section-title">Timetable Photos</div>
+    <p class="info-text" style="margin-bottom:16px">
+      Take a photo of your department/group timetable board (or a PDF export) and upload it here.
+      You can add photos for several groups at once — they'll be merged into one dataset.
+    </p>
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept="image/*" multiple/>
+      <div class="upload-icon">📷</div>
+      <div class="upload-text">Drop <strong>timetable photos</strong> here or click to browse</div>
+    </div>
+    <div class="file-list" id="file-list"></div>
+    <div style="margin-top:16px" class="btn-row">
+      <button class="btn" onclick="extractPhotos()" id="extract-btn" disabled>⚡ Extract Timetable Data</button>
+      <div class="loading" id="extract-loading">
+        <div class="spinner"></div>
+        <span>Reading photos…</span>
+      </div>
+    </div>
+    <div class="error-box" id="upload-error"></div>
+  </div>
+
+  <!-- STEP 2: Review extracted data -->
+  <div class="section" id="review-section" style="display:none">
+    <div class="section-title">Review Extracted Data</div>
+    <p class="info-text" style="margin-bottom:12px">
+      Photo extraction can make mistakes — check the rows below before selecting courses.
+      Click any cell to edit it, or remove/add rows.
+    </p>
+    <div class="warning-box" id="extract-warnings" style="display:none"></div>
+    <div class="table-wrapper">
+      <table class="edit-table" id="review-table">
+        <thead>
+          <tr>
+            <th>Course Name</th><th>Code</th><th>Type</th><th>Instructor</th>
+            <th>Day</th><th>Start</th><th>End</th><th>Group</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="review-tbody"></tbody>
+      </table>
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn-secondary" onclick="addReviewRow()">+ Add Row</button>
+      <button class="btn" onclick="confirmReview()">Confirm Data →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: Courses & Preferences -->
+  <div class="section" id="prefs-section" style="display:none">
+    <div class="section-title">Select Your Courses</div>
+    <div class="chips" id="chips-courses"></div>
+
+    <div class="section-title" style="margin-top:28px">Hard Constraints (must hold)</div>
+    <div class="pref-grid">
+      <div class="pref-group">
+        <label>🚫 Cannot Attend These Sections</label>
+        <div class="chips avoid" id="chips-blocked-sections"></div>
+      </div>
+      <div class="pref-group">
+        <label>🚫 Cannot Attend These Days</label>
+        <div class="chips avoid" id="chips-blocked-days"></div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:28px">Preferences (nice to have)</div>
+    <div class="pref-grid">
+      <div class="pref-group">
+        <label>✅ Preferred Sections/Groups</label>
+        <div class="chips" id="chips-preferred-sections"></div>
+      </div>
+      <div class="pref-group">
+        <label>👨‍🏫 Preferred Instructors</label>
+        <div class="chips" id="chips-preferred-instructors"></div>
+      </div>
+      <div class="pref-group">
+        <label>🌤 Days You'd Like Free</label>
+        <div class="chips" id="chips-free-days"></div>
+      </div>
+      <div class="pref-group">
+        <label>⚙️ Other Preferences</label>
+        <label class="checkbox-row"><input type="checkbox" id="pref-avoid-early"/> Avoid early classes (before 9am)</label>
+        <label class="checkbox-row"><input type="checkbox" id="pref-avoid-late"/> Avoid late classes (after 4pm)</label>
+        <label class="checkbox-row"><input type="checkbox" id="pref-minimize-gaps" checked/> Minimize gaps between classes</label>
+        <label class="checkbox-row"><input type="checkbox" id="pref-compact" checked/> Prefer a compact schedule (fewer days)</label>
+      </div>
+    </div>
+
+    <div style="margin-top:20px" class="btn-row">
+      <button class="btn" onclick="generate()" id="gen-btn">⚡ Generate Timetable</button>
+      <div class="loading" id="gen-loading">
+        <div class="spinner"></div>
+        <span>Solving…</span>
+      </div>
+    </div>
+    <div class="error-box" id="gen-error"></div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="section" id="result-section">
+    <div class="section-title">Your Timetable</div>
+    <div class="alt-tabs" id="alt-tabs"></div>
+    <div class="summary-grid" id="summary-grid"></div>
+    <div class="score-breakdown" id="score-breakdown"></div>
+    <div class="timetable-wrapper">
+      <table class="timetable" id="timetable"></table>
+    </div>
+    <button class="json-toggle" onclick="toggleJson()">{ } View Raw JSON</button>
+    <pre id="raw-json"></pre>
+  </div>
+
+</div>
+<script src="main.js"></script>
+</body>
+</html>
