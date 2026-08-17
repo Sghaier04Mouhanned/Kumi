@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Timetable Optimizer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="header-inner">
+      <div>
+        <div class="logo">SCHED<span>AI</span></div>
+        <div class="logo-sub">University Timetable Optimizer</div>
+      </div>
+      <div class="badge">Powered by Groq</div>
+    </div>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="step1"><span class="step-num">01</span>Load Data</div>
+    <div class="step" id="step2"><span class="step-num">02</span>Set Preferences</div>
+    <div class="step" id="step3"><span class="step-num">03</span>Generate</div>
+  </div>
+
+  <!-- STEP 1: API KEY -->
+  <div class="section">
+    <div class="section-title">Groq API Key</div>
+    <div class="input-row">
+      <input type="password" id="api-key" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"/>
+    </div>
+    <p class="info-text">Get your free key at <strong>console.groq.com</strong> → API Keys. Never stored anywhere.</p>
+  </div>
+
+  <!-- STEP 1: JSON Upload -->
+  <div class="section">
+    <div class="section-title">Timetable Data</div>
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept=".json"/>
+      <div class="upload-icon">📂</div>
+      <div class="upload-text">Drop your <strong>JSON file</strong> here or click to browse</div>
+      <div class="upload-success" id="upload-success" style="display:none"></div>
+    </div>
+    <div class="or-divider">OR PASTE JSON</div>
+    <textarea id="json-paste" placeholder='{"all_classes": [...]}' rows="5"></textarea>
+    <button class="btn" style="margin-top:12px" onclick="loadData()">Load & Extract Options →</button>
+  </div>
+
+  <!-- STEP 2: Preferences -->
+  <div class="section" id="prefs-section" style="display:none">
+    <div class="section-title">Your Preferences</div>
+    <div class="pref-grid">
+      <div class="pref-group">
+        <label>✅ Preferred Groups</label>
+        <div class="chips" id="chips-groups"></div>
+      </div>
+      <div class="pref-group">
+        <label>👨‍🏫 Preferred Instructors</label>
+        <div class="chips" id="chips-instructors"></div>
+      </div>
+      <div class="pref-group">
+        <label>🚫 Avoid Days</label>
+        <div class="chips avoid" id="chips-days"></div>
+      </div>
+      <div class="pref-group">
+        <label>📚 Course Types to Include</label>
+        <div class="chips" id="chips-types"></div>
+      </div>
+    </div>
+    <div style="margin-top:20px">
+      <label style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:2px;display:block;margin-bottom:8px">💬 Extra Instructions (optional)</label>
+      <textarea id="extra-prompt" rows="2" placeholder="e.g. No classes before 10am, prefer compact schedule with fewer days..."></textarea>
+    </div>
+  </div>
+
+  <!-- STEP 3: Generate -->
+  <div class="section" id="generate-section" style="display:none">
+    <div class="section-title">Generate Timetable</div>
+    <div class="prompt-box" id="prompt-preview">
+      <em style="color:var(--muted)">Load your data first to see the prompt preview...</em>
+    </div>
+    <div style="margin-top:16px" class="btn-row">
+      <button class="btn" onclick="generate()" id="gen-btn">⚡ Generate with Groq</button>
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <span id="loading-text">Calling Groq API...</span>
+      </div>
+    </div>
+    <div class="error-box" id="error-box"></div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="section" id="result-section">
+    <div class="section-title">Your Optimized Timetable</div>
+    <div class="summary-grid" id="summary-grid"></div>
+    <div class="timetable-wrapper">
+      <table class="timetable" id="timetable"></table>
+    </div>
+    <button class="json-toggle" onclick="toggleJson()">{ } View Raw JSON</button>
+    <pre id="raw-json"></pre>
+  </div>
+
+</div>
+<script src="main.js"></script>
+</body>
+</html>

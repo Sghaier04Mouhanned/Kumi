@@ -5,8 +5,7 @@ from dotenv import load_dotenv
 from landingai_ade import LandingAIADE
 from landingai_ade.types import ParseResponse, ExtractResponse
 
-from .schema import schema_json
-
+from image_to_json.schema import schema_json
 
 # Supported image extensions (upper- and lower-case)
 IMAGE_EXTENSIONS = {
