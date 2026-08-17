@@ -18,6 +18,7 @@ let blockedDays = new Set();
 let freeDays = new Set();
 let lastResults = [];
 let activeResultIndex = 0;
+let currentSuggestions = [];  // AI reconciliation suggestions not yet applied
 
 // =====================
 // Step 1: Upload
@@ -92,6 +93,16 @@ async function extractPhotos() {
       warnBox.style.display = 'none';
     }
 
+    const noteBox = document.getElementById('reconcile-note');
+    if (data.reconcile_note) {
+      noteBox.style.display = 'block';
+      noteBox.textContent = data.reconcile_note;
+    } else {
+      noteBox.style.display = 'none';
+    }
+
+    currentSuggestions = data.suggestions || [];
+    renderSuggestions();
     renderReviewTable();
     document.getElementById('review-section').style.display = 'block';
     setStep(2);
@@ -110,10 +121,18 @@ function renderReviewTable() {
   const tbody = document.getElementById('review-tbody');
   tbody.innerHTML = reviewRows.map((row) => `
     <tr data-id="${row.id}">
-      <td><input value="${esc(row.course_name)}" oninput="updateRow(${row.id},'course_name',this.value)"/></td>
-      <td><input value="${esc(row.course_code)}" oninput="updateRow(${row.id},'course_code',this.value)"/></td>
+      <td class="${row.original_course_name ? 'ai-corrected' : ''}">
+        <input value="${esc(row.course_name)}" oninput="updateRow(${row.id},'course_name',this.value)"/>
+      </td>
+      <td class="${row.original_course_code ? 'ai-corrected' : ''}">
+        <input value="${esc(row.course_code)}" oninput="updateRow(${row.id},'course_code',this.value)"/>
+        ${row.original_course_code ? `<button class="undo-btn" title="AI-corrected from '${esc(row.original_course_code)}' — click to undo" onclick="undoCorrection(${row.id},'course')">↺</button>` : ''}
+      </td>
       <td><input value="${esc(row.course_type || '')}" oninput="updateRow(${row.id},'course_type',this.value)"/></td>
-      <td><input value="${esc(row.instructor_name || '')}" oninput="updateRow(${row.id},'instructor_name',this.value)"/></td>
+      <td class="${row.original_instructor_name ? 'ai-corrected' : ''}">
+        <input value="${esc(row.instructor_name || '')}" oninput="updateRow(${row.id},'instructor_name',this.value)"/>
+        ${row.original_instructor_name ? `<button class="undo-btn" title="AI-corrected from '${esc(row.original_instructor_name)}' — click to undo" onclick="undoCorrection(${row.id},'instructor')">↺</button>` : ''}
+      </td>
       <td>
         <select onchange="updateRow(${row.id},'day',this.value)">
           ${DAY_ORDER.map((d) => `<option value="${d}" ${row.day === d ? 'selected' : ''}>${d}</option>`).join('')}
@@ -134,6 +153,61 @@ function updateRow(id, field, value) {
 
 function deleteRow(id) {
   reviewRows = reviewRows.filter((r) => r.id !== id);
+  renderReviewTable();
+}
+
+function undoCorrection(id, field) {
+  const row = reviewRows.find((r) => r.id === id);
+  if (!row) return;
+  if (field === 'course') {
+    if (row.original_course_code) row.course_code = row.original_course_code;
+    if (row.original_course_name) row.course_name = row.original_course_name;
+    row.original_course_code = null;
+    row.original_course_name = null;
+  } else if (field === 'instructor') {
+    if (row.original_instructor_name) row.instructor_name = row.original_instructor_name;
+    row.original_instructor_name = null;
+  }
+  renderReviewTable();
+}
+
+// =====================
+// AI reconciliation suggestions (low-confidence groupings, not auto-applied)
+// =====================
+function renderSuggestions() {
+  const box = document.getElementById('extract-suggestions');
+  if (!currentSuggestions.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = currentSuggestions.map((s, i) => `
+    <div class="suggestion-item">
+      <span>🤔 ${s.variants.map(esc).join(' / ')} → <strong>${esc(s.canonical)}</strong>${s.reason ? ` <em>(${esc(s.reason)})</em>` : ''}</span>
+      <button class="btn-secondary" onclick="applySuggestion(${i})">Apply</button>
+    </div>
+  `).join('');
+}
+
+function applySuggestion(index) {
+  const s = currentSuggestions[index];
+  if (!s) return;
+
+  reviewRows.forEach((row) => {
+    if (s.field === 'course') {
+      const label = `${row.course_code} (${row.course_name})`;
+      if (!s.variants.includes(label)) return;
+      const match = s.canonical.match(/^(.*) \((.*)\)$/);
+      row.original_course_code = row.original_course_code || row.course_code;
+      row.original_course_name = row.original_course_name || row.course_name;
+      row.course_code = match ? match[1] : s.canonical;
+      row.course_name = match ? match[2] : row.course_name;
+    } else if (s.field === 'instructor') {
+      if (!s.variants.includes(row.instructor_name)) return;
+      row.original_instructor_name = row.original_instructor_name || row.instructor_name;
+      row.instructor_name = s.canonical;
+    }
+  });
+
+  currentSuggestions.splice(index, 1);
+  renderSuggestions();
   renderReviewTable();
 }
 

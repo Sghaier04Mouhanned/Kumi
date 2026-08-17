@@ -225,6 +225,33 @@ textarea:focus { border-color: var(--accent); }
 }
 
 /* =====================
+   AI reconciliation suggestions + undo
+   ===================== */
+.suggestion-box {
+  background: rgba(42,52,144,0.12);
+  border: 1px solid rgba(77,89,201,0.4);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.suggestion-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  font-size: 0.78rem; color: var(--text); flex-wrap: wrap;
+}
+.suggestion-item em { color: var(--muted); font-style: normal; }
+.suggestion-item .btn-secondary { padding: 6px 14px; font-size: 0.72rem; flex: none; }
+
+.ai-corrected { background: rgba(77,89,201,0.1); }
+.undo-btn {
+  background: none; border: none; color: var(--accent2-light);
+  cursor: pointer; font-size: 0.8rem; padding: 4px 6px; vertical-align: middle;
+}
+.undo-btn:hover { color: var(--text); }
+
+/* =====================
    Editable review table
    ===================== */
 .table-wrapper { overflow-x: auto; border-radius: 8px; }

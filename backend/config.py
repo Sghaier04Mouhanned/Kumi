@@ -10,5 +10,8 @@ class Settings(BaseSettings):
     extract_model: str = "extract-latest"
     max_upload_size_mb: int = 15
 
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
+
 
 settings = Settings()
