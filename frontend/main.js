@@ -8,7 +8,7 @@ let rowIdCounter = 0;
 // =====================
 // State
 // =====================
-let uploadedFiles = [];      // File[]
+let uploadedFiles = [];      // [{file, groupLabel}]
 let reviewRows = [];         // [{id, course_name, course_code, course_type, instructor_name, day, time_start, time_end, group_number}]
 let selectedCourses = new Set();
 let preferredSections = new Set();   // "CODE|GROUP"
@@ -36,7 +36,7 @@ fileInput.addEventListener('change', (e) => addFiles(e.target.files));
 
 function addFiles(fileList) {
   for (const f of fileList) {
-    if (f.type.startsWith('image/')) uploadedFiles.push(f);
+    if (f.type.startsWith('image/')) uploadedFiles.push({ file: f, groupLabel: '' });
   }
   renderFileList();
 }
@@ -46,11 +46,17 @@ function removeFile(index) {
   renderFileList();
 }
 
+function updateFileLabel(index, value) {
+  uploadedFiles[index].groupLabel = value;
+}
+
 function renderFileList() {
   const el = document.getElementById('file-list');
-  el.innerHTML = uploadedFiles.map((f, i) => `
+  el.innerHTML = uploadedFiles.map((entry, i) => `
     <div class="file-chip">
-      <span>📷 ${f.name}</span>
+      <span>📷 ${esc(entry.file.name)}</span>
+      <input class="group-label-input" placeholder="Group (e.g. G1)" value="${esc(entry.groupLabel)}"
+             oninput="updateFileLabel(${i}, this.value)"/>
       <button onclick="removeFile(${i})" aria-label="Remove">✕</button>
     </div>
   `).join('');
@@ -66,7 +72,8 @@ async function extractPhotos() {
   loading.classList.add('show');
 
   const formData = new FormData();
-  uploadedFiles.forEach((f) => formData.append('files', f));
+  uploadedFiles.forEach((entry) => formData.append('files', entry.file));
+  formData.append('group_labels', JSON.stringify(uploadedFiles.map((entry) => entry.groupLabel)));
 
   try {
     const res = await fetch('/api/extract', { method: 'POST', body: formData });

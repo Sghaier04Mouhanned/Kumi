@@ -1,6 +1,7 @@
+import json
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -25,11 +26,21 @@ def health() -> dict[str, str]:
 
 
 @app.post("/api/extract", response_model=ExtractResponse)
-async def extract(files: list[UploadFile] = File(...)) -> ExtractResponse:
+async def extract(
+    files: list[UploadFile] = File(...),
+    group_labels: str = Form("[]"),
+) -> ExtractResponse:
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded.")
 
-    classes, warnings = await extract_from_uploads(files)
+    try:
+        labels = json.loads(group_labels)
+        if not isinstance(labels, list):
+            raise ValueError
+    except ValueError:
+        raise HTTPException(status_code=400, detail="group_labels must be a JSON array of strings.")
+
+    classes, warnings = await extract_from_uploads(files, labels)
 
     if not classes and warnings:
         raise HTTPException(status_code=422, detail=[w.message for w in warnings])
