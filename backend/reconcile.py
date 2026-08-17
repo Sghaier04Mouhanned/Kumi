@@ -21,21 +21,36 @@ from backend.models import ClassSession, ReconcileSuggestion
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 SYSTEM_PROMPT = """You clean up course and instructor data extracted via OCR from a \
-university timetable photo. OCR sometimes misreads a digit or letter, so the same real \
-course or professor can appear under two or more slightly different spellings (e.g. \
-"MIS20" and "MIS200" both being "Management Information Systems", or "R. Esghaier" and \
-"R. Esghair" being the same person).
+university timetable photo. OCR sometimes misreads letters or digits, so the same real \
+course or professor can appear under two or more different-looking spellings -- not just \
+small typos. Examples: "MIS20" and "MIS200" are both "Management Information Systems"; \
+"R. Esghaier" and "R. Esghair" are the same person; "BCOR200" and "BOOK200" can be the same \
+course misread (C/R confused with O/K), especially when other evidence supports it.
 
-Find such duplicates and propose one canonical value for each group. Only group entries \
-you are confident refer to the exact same real-world course or person -- never group \
-genuinely different courses (e.g. CS220 and CS221 are different courses) or different \
+Each course entry lists its sessions (day, time, group). A single student group cannot \
+physically attend two different courses at the same day and time, so if two course-code \
+variants share a session with the exact same day, time, and group, treat that as strong \
+extra evidence they are the same real course read two different ways. But the reverse is \
+NOT evidence against merging: two variants having no matching day/time/group is completely \
+expected both when they are two different groups/sections of the same course (which \
+naturally meet at different times) and when they are genuinely different courses -- it \
+tells you nothing either way, so fall back to code and name similarity as your primary \
+signal in that case, same as if session data were not there at all.
+
+Find such duplicates and propose one canonical value for each group. For the canonical \
+value, prefer one of the input variants exactly as given rather than inventing a new \
+spelling -- only deviate from the given variants if the other entries in this list give you \
+clear evidence of the correct form (e.g. every other course shares the same department-code \
+prefix, or the name field is unambiguous and one variant of the code is clearly OCR noise). \
+Only group entries you are confident refer to the exact same real-world course or person -- \
+never group genuinely different courses (e.g. CS220 and CS221 are different courses) or different \
 people who happen to share a surname. If you are not fully sure, mark confidence as "low" \
 rather than omitting the group -- a human will review low-confidence groups before anything \
 is merged. Respond with a JSON object only, no other text."""
 
 
 def _build_user_prompt(course_entries: list[dict], instructor_entries: list[dict]) -> str:
-    return f"""Courses (id, code, name):
+    return f"""Courses (id, code, name, sessions=[day,time,group]):
 {json.dumps(course_entries)}
 
 Instructors (id, name):
@@ -73,7 +88,18 @@ async def reconcile(classes: list[ClassSession]) -> tuple[list[ClassSession], li
     if len(course_list) < 2 and len(instructor_list) < 2:
         return classes, [], None
 
-    course_entries = [{"id": i, "code": c, "name": n} for i, (c, n) in enumerate(course_list)]
+    course_entries = [
+        {
+            "id": i,
+            "code": c,
+            "name": n,
+            "sessions": [
+                [classes[idx].day, classes[idx].time_start, classes[idx].group_number]
+                for idx in course_keys[(c, n)]
+            ],
+        }
+        for i, (c, n) in enumerate(course_list)
+    ]
     instructor_entries = [{"id": i, "name": n} for i, n in enumerate(instructor_list)]
 
     try:

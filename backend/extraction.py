@@ -20,6 +20,21 @@ from normalize import merge_contiguous_sessions, normalize_schedule
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"}
 
 
+def _dedupe(classes: list[ClassSession]) -> list[ClassSession]:
+    seen: set[tuple[str, str, str, str, str, str]] = set()
+    result = []
+    for item in classes:
+        key = (
+            item.course_code, item.group_number, item.day,
+            item.time_start, item.time_end, item.instructor_name or "",
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+    return result
+
+
 async def _extract_one(client: AsyncLandingAIADE, file: UploadFile, group_override: str) -> tuple[str, list[dict]]:
     content = await file.read()
     if len(content) > settings.max_upload_size_mb * 1024 * 1024:
@@ -96,5 +111,9 @@ async def extract_from_uploads(
             warnings.append(ExtractWarning(filename="(extraction)", message=f"dropped malformed row: {exc}"))
 
     deduped, suggestions, reconcile_note = await reconcile(deduped)
+    # Reconciliation can make two previously-distinct rows fully identical
+    # (e.g. two spellings of the same instructor on the same session) --
+    # dedupe again now that labels are canonicalized.
+    deduped = _dedupe(deduped)
 
     return deduped, warnings, suggestions, reconcile_note
