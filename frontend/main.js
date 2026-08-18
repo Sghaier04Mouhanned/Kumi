@@ -203,6 +203,10 @@ function applySuggestion(index) {
       if (!s.variants.includes(row.instructor_name)) return;
       row.original_instructor_name = row.original_instructor_name || row.instructor_name;
       row.instructor_name = s.canonical;
+    } else if (s.field === 'course_code') {
+      if (!s.variants.includes(row.course_code)) return;
+      row.original_course_code = row.original_course_code || row.course_code;
+      row.course_code = s.canonical;
     }
   });
 
