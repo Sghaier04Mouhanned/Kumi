@@ -1,9 +1,9 @@
 """Turns uploaded timetable photos into structured ClassSession rows.
 
-Each photo is parsed + extracted independently via LandingAI ADE (reusing
-the same schema as image_to_json/), then normalized and merged into one
-deduplicated list. Nothing is written to disk or persisted -- results only
-ever live in the response for that request.
+Each photo is parsed + extracted independently via Gemini (backend/vision.py),
+then normalized and merged into one deduplicated list. Nothing is written to
+disk or persisted beyond the extraction cache -- results only ever live in
+the response for that request.
 """
 
 import asyncio
@@ -13,19 +13,18 @@ from collections import defaultdict
 from pathlib import Path
 
 from fastapi import UploadFile
-from landingai_ade import AsyncLandingAIADE
 
+from backend import vision
 from backend.config import settings
 from backend.models import ClassSession, ExtractWarning, ReconcileSuggestion
 from backend.reconcile import reconcile
-from image_to_json.schema import schema_json
 from normalize import merge_contiguous_sessions, normalize_schedule
 
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"}
 
 # Keyed by the exact bytes of the uploaded photo -- the same image is never
-# sent to LandingAI twice. This is a paid API, and repeated dev/test runs
-# with the same file were burning quota for no reason.
+# sent to the vision API twice. Repeated dev/test runs with the same file
+# were burning through quota for no reason.
 CACHE_DIR = Path(__file__).resolve().parent.parent / ".extraction_cache"
 
 
@@ -86,7 +85,7 @@ def _dedupe(classes: list[ClassSession]) -> list[ClassSession]:
     return result
 
 
-async def _extract_one(client: AsyncLandingAIADE, file: UploadFile, group_override: str) -> tuple[str, list[dict]]:
+async def _extract_one(file: UploadFile, group_override: str) -> tuple[str, list[dict]]:
     content = await file.read()
     if len(content) > settings.max_upload_size_mb * 1024 * 1024:
         raise ValueError(f"file exceeds {settings.max_upload_size_mb}MB limit")
@@ -96,32 +95,20 @@ async def _extract_one(client: AsyncLandingAIADE, file: UploadFile, group_overri
         cached = json.loads(cache_path.read_text(encoding="utf-8"))
         extracted_group = cached.get("group_number")
         schedule = cached.get("schedule") or []
-        print(f"[extraction cache] hit for {file.filename} ({cache_path.name}) -- LandingAI not called")
+        print(f"[extraction cache] hit for {file.filename} ({cache_path.name}) -- vision API not called")
     else:
-        parse_result = await client.parse(
-            document=(file.filename or "upload.jpg", content, file.content_type or "image/jpeg"),
-            model=settings.parse_model,
-        )
-        extraction_result = await client.extract(
-            schema=schema_json,
-            markdown=parse_result.markdown,
-            model=settings.extract_model,
-        )
-
-        data = extraction_result.extraction or {}
-        extracted_group = (data.get("group_info") or {}).get("group_number")
-        schedule = data.get("schedule") or []
+        extracted_group, schedule = await vision.extract_photo(content, file.content_type or "image/jpeg")
 
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(
             json.dumps({"group_number": extracted_group, "schedule": schedule}, ensure_ascii=False),
             encoding="utf-8",
         )
-        print(f"[extraction cache] miss for {file.filename} -- called LandingAI, cached as {cache_path.name}")
+        print(f"[extraction cache] miss for {file.filename} -- called vision API, cached as {cache_path.name}")
 
-    # LandingAI's group_info extraction is unreliable between runs (confirmed:
-    # the same photo returned "G1" once and nothing the next time), so a
-    # group label the uploader typed in for this photo wins when given.
+    # Vision extraction of the group/section label is unreliable between runs
+    # (confirmed with the previous provider: same photo, different results),
+    # so a group label the uploader typed in for this photo wins when given.
     group_number = group_override.strip() or extracted_group or "UNKNOWN"
     return group_number, schedule
 
@@ -129,12 +116,11 @@ async def _extract_one(client: AsyncLandingAIADE, file: UploadFile, group_overri
 async def extract_from_uploads(
     files: list[UploadFile], group_labels: list[str] | None = None
 ) -> tuple[list[ClassSession], list[ExtractWarning], list[ReconcileSuggestion], str | None]:
-    client = AsyncLandingAIADE(apikey=settings.vision_agent_api_key or None)
     labels = group_labels or [""] * len(files)
 
     async def run(file: UploadFile, label: str):
         try:
-            return await _extract_one(client, file, label)
+            return await _extract_one(file, label)
         except Exception as exc:  # noqa: BLE001 - surfaced to the caller as a per-file warning
             return exc
 
