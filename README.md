@@ -9,7 +9,7 @@ search, not an LLM.
 ## How it works
 
 ```
-Photo(s) of timetable  --[LandingAI ADE]-->  structured class data
+Photo(s) of timetable  --[Gemini]-->  structured class data
         |
         v
 Review & correct extracted data (extraction isn't perfect)
@@ -32,14 +32,16 @@ only in the browser for that session. There's no database.
 ```
 backend/
   main.py         # FastAPI app: /api/extract, /api/generate, serves frontend/
-  extraction.py   # Photo -> structured class sessions (LandingAI ADE)
+  extraction.py   # Orchestrates: vision.py -> normalize -> merge -> dedupe -> reconcile -> validate
+  vision.py        # Photo -> raw structured data (Gemini)
+  reconcile.py     # AI cleanup of duplicate/misread course & instructor labels (Groq)
   solver.py       # Backtracking search + weighted soft-preference scoring
   models.py       # Pydantic request/response schemas
-  config.py       # Settings (API key, CORS, models)
+  config.py       # Settings (API keys, CORS, models)
+data/
+  tbs_catalog.json # TBS's real course catalog, used to ground reconciliation
 frontend/
   index.html, main.js, style.css   # Static UI, no build step
-image_to_json/
-  schema.py       # Extraction JSON schema (shared with backend/extraction.py)
 normalize.py      # Field normalization (day names, time format, course codes)
 ```
 
@@ -50,10 +52,14 @@ normalize.py      # Field normalization (day names, time format, course codes)
    pip install -r requirements.txt
    ```
 
-2. Set your LandingAI key in `.env` at the project root:
+2. Set your Gemini key in `.env` at the project root (free tier, no
+   billing setup — get one at [aistudio.google.com](https://aistudio.google.com) → API keys):
    ```
-   VISION_AGENT_API_KEY=your_key_here
+   GEMINI_API_KEY=your_key_here
    ```
+   Also set `GROQ_API_KEY` (free tier at [console.groq.com](https://console.groq.com)) to enable the
+   optional AI reconciliation pass — extraction still works without it,
+   just without duplicate-label cleanup.
 
 3. Start the server from the project root (module mode so `backend/`
    can import the root-level `image_to_json/` and `normalize.py`):
@@ -70,8 +76,9 @@ included for [Render](https://render.com)'s free tier:
 
 1. Push this repo to GitHub, connect it on Render, it picks up
    `render.yaml` automatically.
-2. Set the `VISION_AGENT_API_KEY` environment variable in the Render
-   dashboard (kept out of `render.yaml` on purpose — never commit it).
+2. Set the `GEMINI_API_KEY` and `GROQ_API_KEY` environment variables in
+   the Render dashboard (kept out of `render.yaml` on purpose — never
+   commit them).
 
 Fly.io or Railway work the same way: `pip install -r requirements.txt`
 as the build step, `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
