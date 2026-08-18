@@ -69,6 +69,19 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+.ipynb_checkpoints/
+
+__pycache__/
+*.pyc
+
+output/
+results/
+models/
+.extraction_cache/
+
+# Temporary / experiments
+temp/
+drafts/
 
 # IPython
 profile_default/
