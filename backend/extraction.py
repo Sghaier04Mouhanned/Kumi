@@ -7,6 +7,7 @@ ever live in the response for that request.
 """
 
 import asyncio
+from collections import defaultdict
 
 from fastapi import UploadFile
 from landingai_ade import AsyncLandingAIADE
@@ -18,6 +19,43 @@ from image_to_json.schema import schema_json
 from normalize import merge_contiguous_sessions, normalize_schedule
 
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"}
+
+# Department standard: every course is a 3-hour weekly block except
+# Tutorials, which run shorter. Used only as a review-step hint --
+# never blocks generation, since it's a heuristic, not a hard rule.
+EXPECTED_COURSE_MINUTES = 180
+
+
+def _is_tutorial(course_type: str | None) -> bool:
+    if not course_type:
+        return False
+    t = course_type.strip().lower()
+    return "tut" in t or t in ("(t)", "t")
+
+
+def _minutes(time_str: str) -> int:
+    hours, mins = time_str.split(":")
+    return int(hours) * 60 + int(mins)
+
+
+def _validate_durations(classes: list[ClassSession]) -> list[ExtractWarning]:
+    groups: dict[tuple[str, str], list[ClassSession]] = defaultdict(list)
+    for item in classes:
+        if _is_tutorial(item.course_type):
+            continue
+        groups[(item.course_code, item.group_number)].append(item)
+
+    warnings = []
+    for (code, group), items in groups.items():
+        total = sum(_minutes(i.time_end) - _minutes(i.time_start) for i in items)
+        if total != EXPECTED_COURSE_MINUTES:
+            hours, mins = divmod(total, 60)
+            warnings.append(ExtractWarning(
+                filename="(validation)",
+                message=f"{code} ({group}) totals {hours}h{mins:02d}m of non-tutorial sessions, expected 3h "
+                        "-- a session may be missing or misread. Check the review table.",
+            ))
+    return warnings
 
 
 def _dedupe(classes: list[ClassSession]) -> list[ClassSession]:
@@ -115,5 +153,6 @@ async def extract_from_uploads(
     # (e.g. two spellings of the same instructor on the same session) --
     # dedupe again now that labels are canonicalized.
     deduped = _dedupe(deduped)
+    warnings.extend(_validate_durations(deduped))
 
     return deduped, warnings, suggestions, reconcile_note
