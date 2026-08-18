@@ -7,7 +7,10 @@ ever live in the response for that request.
 """
 
 import asyncio
+import hashlib
+import json
 from collections import defaultdict
+from pathlib import Path
 
 from fastapi import UploadFile
 from landingai_ade import AsyncLandingAIADE
@@ -19,6 +22,16 @@ from image_to_json.schema import schema_json
 from normalize import merge_contiguous_sessions, normalize_schedule
 
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"}
+
+# Keyed by the exact bytes of the uploaded photo -- the same image is never
+# sent to LandingAI twice. This is a paid API, and repeated dev/test runs
+# with the same file were burning quota for no reason.
+CACHE_DIR = Path(__file__).resolve().parent.parent / ".extraction_cache"
+
+
+def _cache_path(content: bytes) -> Path:
+    digest = hashlib.sha256(content).hexdigest()
+    return CACHE_DIR / f"{digest}.json"
 
 # Department standard: every course is a 3-hour weekly block except
 # Tutorials, which run shorter. Used only as a review-step hint --
@@ -78,23 +91,38 @@ async def _extract_one(client: AsyncLandingAIADE, file: UploadFile, group_overri
     if len(content) > settings.max_upload_size_mb * 1024 * 1024:
         raise ValueError(f"file exceeds {settings.max_upload_size_mb}MB limit")
 
-    parse_result = await client.parse(
-        document=(file.filename or "upload.jpg", content, file.content_type or "image/jpeg"),
-        model=settings.parse_model,
-    )
-    extraction_result = await client.extract(
-        schema=schema_json,
-        markdown=parse_result.markdown,
-        model=settings.extract_model,
-    )
+    cache_path = _cache_path(content)
+    if cache_path.exists():
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        extracted_group = cached.get("group_number")
+        schedule = cached.get("schedule") or []
+        print(f"[extraction cache] hit for {file.filename} ({cache_path.name}) -- LandingAI not called")
+    else:
+        parse_result = await client.parse(
+            document=(file.filename or "upload.jpg", content, file.content_type or "image/jpeg"),
+            model=settings.parse_model,
+        )
+        extraction_result = await client.extract(
+            schema=schema_json,
+            markdown=parse_result.markdown,
+            model=settings.extract_model,
+        )
 
-    data = extraction_result.extraction or {}
-    extracted_group = (data.get("group_info") or {}).get("group_number")
+        data = extraction_result.extraction or {}
+        extracted_group = (data.get("group_info") or {}).get("group_number")
+        schedule = data.get("schedule") or []
+
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(
+            json.dumps({"group_number": extracted_group, "schedule": schedule}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        print(f"[extraction cache] miss for {file.filename} -- called LandingAI, cached as {cache_path.name}")
+
     # LandingAI's group_info extraction is unreliable between runs (confirmed:
     # the same photo returned "G1" once and nothing the next time), so a
     # group label the uploader typed in for this photo wins when given.
     group_number = group_override.strip() or extracted_group or "UNKNOWN"
-    schedule = data.get("schedule") or []
     return group_number, schedule
 
 
