@@ -11,6 +11,7 @@ an undo); low-confidence ones are returned as suggestions the student
 applies manually.
 """
 
+import asyncio
 import difflib
 import json
 from pathlib import Path
@@ -22,6 +23,12 @@ from backend.models import ClassSession, ReconcileSuggestion
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 CATALOG_PATH = Path(__file__).resolve().parent.parent / "data" / "tbs_catalog.json"
+
+# Groq's free tier rate-limits under normal testing load (confirmed: hit
+# repeatedly during this project's own dev/test cycles). A 429 is usually
+# transient, so retry with backoff before giving up and skipping cleanup.
+MAX_RATE_LIMIT_RETRIES = 2
+RATE_LIMIT_BACKOFF_SECONDS = 5.0
 
 CLOSEST_MATCH_COUNT = 2
 CLOSEST_MATCH_MIN_SIMILARITY = 0.55  # below this, not worth showing the model as a hint
@@ -180,24 +187,32 @@ async def reconcile(classes: list[ClassSession]) -> tuple[list[ClassSession], li
     if len(course_list) < 2 and len(instructor_list) < 2 and not any_catalog_hint:
         return classes, [], None
 
+    payload = {
+        "model": settings.groq_model,
+        "temperature": 0.1,
+        "max_tokens": 2000,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": _build_user_prompt(course_entries, instructor_entries)},
+        ],
+    }
+
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.post(
-                GROQ_URL,
-                headers={"Authorization": f"Bearer {settings.groq_api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": settings.groq_model,
-                    "temperature": 0.1,
-                    "max_tokens": 2000,
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": _build_user_prompt(course_entries, instructor_entries)},
-                    ],
-                },
-            )
-            resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"]
-            parsed = _parse_json_response(content)
+            for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
+                resp = await client.post(
+                    GROQ_URL,
+                    headers={"Authorization": f"Bearer {settings.groq_api_key}", "Content-Type": "application/json"},
+                    json=payload,
+                )
+                if resp.status_code == 429 and attempt < MAX_RATE_LIMIT_RETRIES:
+                    wait = float(resp.headers.get("retry-after", RATE_LIMIT_BACKOFF_SECONDS))
+                    await asyncio.sleep(min(wait, 15.0))
+                    continue
+                resp.raise_for_status()
+                content = resp.json()["choices"][0]["message"]["content"]
+                parsed = _parse_json_response(content)
+                break
     except Exception as exc:  # noqa: BLE001 - never let cleanup break extraction
         return classes, [], f"AI cleanup skipped: {exc}"
 

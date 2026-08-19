@@ -93,13 +93,7 @@ async function extractPhotos() {
       warnBox.style.display = 'none';
     }
 
-    const noteBox = document.getElementById('reconcile-note');
-    if (data.reconcile_note) {
-      noteBox.style.display = 'block';
-      noteBox.textContent = data.reconcile_note;
-    } else {
-      noteBox.style.display = 'none';
-    }
+    renderReconcileNote(data.reconcile_note);
 
     currentSuggestions = data.suggestions || [];
     renderSuggestions();
@@ -169,6 +163,45 @@ function undoCorrection(id, field) {
     row.original_instructor_name = null;
   }
   renderReviewTable();
+}
+
+// =====================
+// Reconciliation skipped notice + manual retry
+// =====================
+function renderReconcileNote(note) {
+  const box = document.getElementById('reconcile-note');
+  if (note) {
+    box.style.display = 'flex';
+    document.getElementById('reconcile-note-text').textContent = '⚠️ ' + note;
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+async function retryReconcile() {
+  const btn = document.getElementById('retry-reconcile-btn');
+  btn.disabled = true;
+  btn.textContent = 'Retrying…';
+  try {
+    const res = await fetch('/api/reconcile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classes: reviewRows.map(normalizeSession) }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Retry failed.');
+
+    reviewRows = data.classes.map((c) => ({ id: rowIdCounter++, ...c }));
+    renderReconcileNote(data.reconcile_note);
+    currentSuggestions = data.suggestions || [];
+    renderSuggestions();
+    renderReviewTable();
+  } catch (err) {
+    alert('Retry failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Retry AI Cleanup';
+  }
 }
 
 // =====================
