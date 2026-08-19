@@ -162,11 +162,24 @@ async def extract_from_uploads(
         except Exception as exc:  # noqa: BLE001 - malformed row from a bad extraction
             warnings.append(ExtractWarning(filename="(extraction)", message=f"dropped malformed row: {exc}"))
 
-    deduped, suggestions, reconcile_note = await reconcile(deduped)
+    deduped, reconcile_warnings, suggestions, reconcile_note = await reconcile_and_validate(deduped)
+    warnings.extend(reconcile_warnings)
+
+    return deduped, warnings, suggestions, reconcile_note
+
+
+async def reconcile_and_validate(
+    classes: list[ClassSession],
+) -> tuple[list[ClassSession], list[ExtractWarning], list[ReconcileSuggestion], str | None]:
+    """Shared tail of the pipeline: AI cleanup + dedupe + duration check.
+
+    Split out so /api/reconcile can re-run just this part (e.g. after a
+    Groq rate limit) without re-calling the vision API on the photos again.
+    """
+    classes, suggestions, reconcile_note = await reconcile(classes)
     # Reconciliation can make two previously-distinct rows fully identical
     # (e.g. two spellings of the same instructor on the same session) --
     # dedupe again now that labels are canonicalized.
-    deduped = _dedupe(deduped)
-    warnings.extend(_validate_durations(deduped))
-
-    return deduped, warnings, suggestions, reconcile_note
+    classes = _dedupe(classes)
+    warnings = _validate_durations(classes)
+    return classes, warnings, suggestions, reconcile_note

@@ -38,6 +38,10 @@ class ExtractResponse(BaseModel):
     reconcile_note: str | None = None
 
 
+class ReconcileRequest(BaseModel):
+    classes: list[ClassSession]
+
+
 class GroupRef(BaseModel):
     course_code: str
     group_number: str
