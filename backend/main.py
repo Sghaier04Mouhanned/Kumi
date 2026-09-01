@@ -10,7 +10,7 @@ from backend.extraction import extract_from_uploads, reconcile_and_validate
 from backend.models import ExtractResponse, GenerateRequest, GenerateResponse, ReconcileRequest
 from backend.solver import generate_timetables
 
-app = FastAPI(title="SchedAI")
+app = FastAPI(title="Kumi")
 
 app.add_middleware(
     CORSMiddleware,
