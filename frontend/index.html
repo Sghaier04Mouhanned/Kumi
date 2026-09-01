@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Timetable Optimizer</title>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
@@ -13,10 +13,10 @@
   <header>
     <div class="header-inner">
       <div>
-        <div class="logo">SCHED<span>AI</span></div>
+        <div class="logo">SchedAI</div>
         <div class="logo-sub">University Timetable Optimizer</div>
       </div>
-      <div class="badge">Free &amp; Deterministic</div>
+      <div class="badge">Free &middot; Deterministic &middot; No account needed</div>
     </div>
   </header>
 
@@ -36,18 +36,23 @@
     </p>
     <div class="upload-zone" id="upload-zone">
       <input type="file" id="file-input" accept="image/*" multiple/>
-      <div class="upload-icon">📷</div>
+      <div class="upload-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 16V4M12 4L6 10M12 4l6 6"/>
+          <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
+        </svg>
+      </div>
       <div class="upload-text">Drop <strong>timetable photos</strong> here or click to browse</div>
     </div>
     <div class="file-list" id="file-list"></div>
     <div style="margin-top:16px" class="btn-row">
-      <button class="btn" onclick="extractPhotos()" id="extract-btn" disabled>⚡ Extract Timetable Data</button>
+      <button class="btn" onclick="extractPhotos()" id="extract-btn" disabled>Extract Timetable Data</button>
       <div class="loading" id="extract-loading">
         <div class="spinner"></div>
         <span>Reading photos…</span>
       </div>
     </div>
-    <div class="error-box" id="upload-error"></div>
+    <div class="alert alert--danger" id="upload-error"></div>
   </div>
 
   <!-- STEP 2: Review extracted data -->
@@ -55,14 +60,15 @@
     <div class="section-title">Review Extracted Data</div>
     <p class="info-text" style="margin-bottom:12px">
       Photo extraction can make mistakes — check the rows below before selecting courses.
-      Click any cell to edit it, or remove/add rows. Cells marked ↺ were auto-corrected by AI
-      cleanup (click to undo).
+      Click any cell to edit it, or remove/add rows. A marked cell was auto-corrected by AI
+      cleanup — click the icon to undo.
     </p>
-    <div class="reconcile-note-box" id="reconcile-note" style="display:none">
-      <span id="reconcile-note-text"></span>
-      <button class="btn-secondary" onclick="retryReconcile()" id="retry-reconcile-btn">Retry AI Cleanup</button>
+    <div class="alert" id="reconcile-note">
+      <span class="alert-icon" id="reconcile-note-icon"></span>
+      <span id="reconcile-note-text" style="flex:1"></span>
+      <button class="btn-secondary alert-action" onclick="retryReconcile()" id="retry-reconcile-btn">Retry AI Cleanup</button>
     </div>
-    <div class="warning-box" id="extract-warnings" style="display:none"></div>
+    <div class="alert" id="extract-warnings"></div>
     <div class="suggestion-box" id="extract-suggestions" style="display:none"></div>
     <div class="table-wrapper">
       <table class="edit-table" id="review-table">
@@ -89,11 +95,11 @@
     <div class="section-title" style="margin-top:28px">Hard Constraints (must hold)</div>
     <div class="pref-grid">
       <div class="pref-group">
-        <label>🚫 Cannot Attend These Sections</label>
+        <label>Cannot Attend These Sections</label>
         <div class="chips avoid" id="chips-blocked-sections"></div>
       </div>
       <div class="pref-group">
-        <label>🚫 Cannot Attend These Days</label>
+        <label>Cannot Attend These Days</label>
         <div class="chips avoid" id="chips-blocked-days"></div>
       </div>
     </div>
@@ -101,19 +107,19 @@
     <div class="section-title" style="margin-top:28px">Preferences (nice to have)</div>
     <div class="pref-grid">
       <div class="pref-group">
-        <label>✅ Preferred Sections/Groups</label>
+        <label>Preferred Sections/Groups</label>
         <div class="chips" id="chips-preferred-sections"></div>
       </div>
       <div class="pref-group">
-        <label>👨‍🏫 Preferred Instructors</label>
+        <label>Preferred Instructors</label>
         <div class="chips" id="chips-preferred-instructors"></div>
       </div>
       <div class="pref-group">
-        <label>🌤 Days You'd Like Free</label>
+        <label>Days You'd Like Free</label>
         <div class="chips" id="chips-free-days"></div>
       </div>
       <div class="pref-group">
-        <label>⚙️ Other Preferences</label>
+        <label>Other Preferences</label>
         <label class="checkbox-row"><input type="checkbox" id="pref-avoid-early"/> Avoid early classes (before 9am)</label>
         <label class="checkbox-row"><input type="checkbox" id="pref-avoid-late"/> Avoid late classes (after 4pm)</label>
         <label class="checkbox-row"><input type="checkbox" id="pref-minimize-gaps" checked/> Minimize gaps between classes</label>
@@ -122,13 +128,13 @@
     </div>
 
     <div style="margin-top:20px" class="btn-row">
-      <button class="btn" onclick="generate()" id="gen-btn">⚡ Generate Timetable</button>
+      <button class="btn" onclick="generate()" id="gen-btn">Generate Timetable</button>
       <div class="loading" id="gen-loading">
         <div class="spinner"></div>
         <span>Solving…</span>
       </div>
     </div>
-    <div class="error-box" id="gen-error"></div>
+    <div class="alert alert--danger" id="gen-error"></div>
   </div>
 
   <!-- RESULT -->

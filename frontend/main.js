@@ -5,6 +5,12 @@ const DAY_ORDER = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const CORE_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
 let rowIdCounter = 0;
 
+// Inline SVG icons -- no emoji/dingbat glyphs anywhere in the UI.
+const ICON_FILE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="1"/><circle cx="9" cy="10" r="2"/><path d="M21 15l-5-4-9 7"/></svg>';
+const ICON_CLOSE = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const ICON_UNDO = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10h9a5 5 0 0 1 0 10H8"/><path d="M4 10l4-4M4 10l4 4"/></svg>';
+const ICON_INFO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16.2" r="0.4" fill="currentColor"/></svg>';
+
 // =====================
 // State
 // =====================
@@ -55,10 +61,10 @@ function renderFileList() {
   const el = document.getElementById('file-list');
   el.innerHTML = uploadedFiles.map((entry, i) => `
     <div class="file-chip">
-      <span>📷 ${esc(entry.file.name)}</span>
+      <span style="display:flex;align-items:center;gap:8px">${ICON_FILE} ${esc(entry.file.name)}</span>
       <input class="group-label-input" placeholder="Group (e.g. G1)" value="${esc(entry.groupLabel)}"
              oninput="updateFileLabel(${i}, this.value)"/>
-      <button onclick="removeFile(${i})" aria-label="Remove">✕</button>
+      <button onclick="removeFile(${i})" aria-label="Remove">${ICON_CLOSE}</button>
     </div>
   `).join('');
   document.getElementById('extract-btn').disabled = uploadedFiles.length === 0;
@@ -87,10 +93,11 @@ async function extractPhotos() {
 
     const warnBox = document.getElementById('extract-warnings');
     if (data.warnings && data.warnings.length) {
-      warnBox.style.display = 'block';
-      warnBox.innerHTML = '⚠️ ' + data.warnings.map((w) => `${w.filename}: ${w.message}`).join('<br>⚠️ ');
+      warnBox.classList.add('show');
+      warnBox.innerHTML = `<span class="alert-icon">${ICON_INFO}</span><span style="flex:1">` +
+        data.warnings.map((w) => `${esc(w.filename)}: ${esc(w.message)}`).join('<br>') + '</span>';
     } else {
-      warnBox.style.display = 'none';
+      warnBox.classList.remove('show');
     }
 
     renderReconcileNote(data.reconcile_note);
@@ -120,12 +127,12 @@ function renderReviewTable() {
       </td>
       <td class="${row.original_course_code ? 'ai-corrected' : ''}">
         <input value="${esc(row.course_code)}" oninput="updateRow(${row.id},'course_code',this.value)"/>
-        ${row.original_course_code ? `<button class="undo-btn" title="AI-corrected from '${esc(row.original_course_code)}' — click to undo" onclick="undoCorrection(${row.id},'course')">↺</button>` : ''}
+        ${row.original_course_code ? `<button class="undo-btn" title="AI-corrected from '${esc(row.original_course_code)}' — click to undo" onclick="undoCorrection(${row.id},'course')">${ICON_UNDO}</button>` : ''}
       </td>
       <td><input value="${esc(row.course_type || '')}" oninput="updateRow(${row.id},'course_type',this.value)"/></td>
       <td class="${row.original_instructor_name ? 'ai-corrected' : ''}">
         <input value="${esc(row.instructor_name || '')}" oninput="updateRow(${row.id},'instructor_name',this.value)"/>
-        ${row.original_instructor_name ? `<button class="undo-btn" title="AI-corrected from '${esc(row.original_instructor_name)}' — click to undo" onclick="undoCorrection(${row.id},'instructor')">↺</button>` : ''}
+        ${row.original_instructor_name ? `<button class="undo-btn" title="AI-corrected from '${esc(row.original_instructor_name)}' — click to undo" onclick="undoCorrection(${row.id},'instructor')">${ICON_UNDO}</button>` : ''}
       </td>
       <td>
         <select onchange="updateRow(${row.id},'day',this.value)">
@@ -135,7 +142,7 @@ function renderReviewTable() {
       <td><input type="time" value="${esc(row.time_start)}" oninput="updateRow(${row.id},'time_start',this.value)"/></td>
       <td><input type="time" value="${esc(row.time_end)}" oninput="updateRow(${row.id},'time_end',this.value)"/></td>
       <td><input value="${esc(row.group_number)}" oninput="updateRow(${row.id},'group_number',this.value)"/></td>
-      <td><button class="row-delete" onclick="deleteRow(${row.id})">✕</button></td>
+      <td><button class="row-delete" onclick="deleteRow(${row.id})">${ICON_CLOSE}</button></td>
     </tr>
   `).join('');
 }
@@ -171,10 +178,11 @@ function undoCorrection(id, field) {
 function renderReconcileNote(note) {
   const box = document.getElementById('reconcile-note');
   if (note) {
-    box.style.display = 'flex';
-    document.getElementById('reconcile-note-text').textContent = '⚠️ ' + note;
+    box.classList.add('show');
+    document.getElementById('reconcile-note-icon').innerHTML = ICON_INFO;
+    document.getElementById('reconcile-note-text').textContent = note;
   } else {
-    box.style.display = 'none';
+    box.classList.remove('show');
   }
 }
 
@@ -213,7 +221,7 @@ function renderSuggestions() {
   box.style.display = 'block';
   box.innerHTML = currentSuggestions.map((s, i) => `
     <div class="suggestion-item">
-      <span>🤔 ${s.variants.map(esc).join(' / ')} → <strong>${esc(s.canonical)}</strong>${s.reason ? ` <em>(${esc(s.reason)})</em>` : ''}</span>
+      <span style="display:flex;align-items:flex-start;gap:8px">${ICON_INFO} <span>${s.variants.map(esc).join(' / ')} → <strong>${esc(s.canonical)}</strong>${s.reason ? ` <em>(${esc(s.reason)})</em>` : ''}</span></span>
       <button class="btn-secondary" onclick="applySuggestion(${i})">Apply</button>
     </div>
   `).join('');
@@ -456,11 +464,12 @@ function renderCalendar(sessions) {
       if (entries.length) {
         html += '<td>';
         entries.forEach((c) => {
-          const typeClass = (c.course_type || 'other').toLowerCase().replace(/[()]/g, '').trim() || 'other';
-          const cls = typeClass.includes('lec') ? 'lecture' : typeClass.includes('tut') ? 'tutorial' : typeClass.includes('lab') ? 'lab' : 'other';
+          const rawType = (c.course_type || '').toLowerCase().replace(/[()]/g, '').trim();
+          const typeLabel = rawType.includes('lec') ? 'Lecture' : rawType.includes('tut') ? 'Tutorial' : rawType.includes('lab') ? 'Lab' : rawType;
           html += `
-            <div class="class-card ${cls}">
+            <div class="class-card">
               <div class="class-name">${esc(c.course_name || c.course_code)}</div>
+              ${typeLabel ? `<div class="class-type">${esc(typeLabel)}</div>` : ''}
               <div class="class-info">${esc(c.instructor_name || '—')}</div>
               <div class="class-info">${c.time_start}–${c.time_end}</div>
               <div><span class="class-badge">${esc(c.group_number)}</span></div>
@@ -491,7 +500,7 @@ function setStep(n) {
 
 function showError(id, msg, isHtml) {
   const box = document.getElementById(id);
-  if (isHtml) box.innerHTML = msg; else box.textContent = msg;
+  box.innerHTML = `<span class="alert-icon">${ICON_INFO}</span><span style="flex:1">${isHtml ? msg : esc(msg)}</span>`;
   box.classList.add('show');
 }
 
