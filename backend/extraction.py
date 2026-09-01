@@ -136,7 +136,13 @@ async def extract_from_uploads(
 
         group_number, schedule = result
         try:
-            normalized = normalize_schedule(schedule, group_number)
+            normalized, skipped_rows = normalize_schedule(schedule, group_number)
+            for skipped_item, reason in skipped_rows:
+                label = skipped_item.get("course_code") or skipped_item.get("course_name") or "a row"
+                warnings.append(ExtractWarning(
+                    filename=file.filename or "unknown",
+                    message=f"Couldn't read the time for {label} ({reason}) -- add it manually in the review table.",
+                ))
             # Merge per-photo first: a course split across adjacent grid
             # time-slots only ever happens within one photo's table.
             all_items.extend(merge_contiguous_sessions(normalized))
