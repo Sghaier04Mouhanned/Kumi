@@ -465,7 +465,10 @@ function renderCalendar(sessions) {
         html += '<td>';
         entries.forEach((c) => {
           const rawType = (c.course_type || '').toLowerCase().replace(/[()]/g, '').trim();
-          const typeLabel = rawType.includes('lec') ? 'Lecture' : rawType.includes('tut') ? 'Tutorial' : rawType.includes('lab') ? 'Lab' : rawType;
+          const typeLabel = rawType === 'l' || rawType.includes('lec') ? 'Lecture'
+            : rawType === 't' || rawType.includes('tut') ? 'Tutorial'
+            : rawType.includes('lab') ? 'Lab'
+            : rawType;
           html += `
             <div class="class-card">
               <div class="class-name">${esc(c.course_name || c.course_code)}</div>
