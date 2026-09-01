@@ -89,7 +89,10 @@ async function extractPhotos() {
       throw new Error(Array.isArray(data.detail) ? data.detail.join('; ') : (data.detail || 'Extraction failed.'));
     }
 
-    reviewRows = data.classes.map((c) => ({ id: rowIdCounter++, ...c }));
+    // Append rather than replace -- if a shared catalog is already loaded,
+    // newly uploaded photos (e.g. a missing group) add to it instead of
+    // discarding it.
+    reviewRows = reviewRows.concat(data.classes.map((c) => ({ id: rowIdCounter++, ...c })));
 
     const warnBox = document.getElementById('extract-warnings');
     if (data.warnings && data.warnings.length) {
@@ -112,6 +115,67 @@ async function extractPhotos() {
   } finally {
     btn.disabled = false;
     loading.classList.remove('show');
+  }
+}
+
+// =====================
+// Shared catalog -- lets regular students skip uploading entirely
+// =====================
+async function loadSharedCatalog() {
+  try {
+    const res = await fetch('/api/catalog');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.classes || !data.classes.length) return; // nothing published yet -- normal upload flow
+
+    reviewRows = data.classes.map((c) => ({ id: rowIdCounter++, ...c }));
+
+    const groups = new Set(reviewRows.map((r) => r.group_number));
+    const updated = data.updated_at ? new Date(data.updated_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'an unknown date';
+    const banner = document.getElementById('catalog-banner');
+    banner.classList.add('show');
+    document.getElementById('catalog-banner-icon').innerHTML = ICON_INFO;
+    document.getElementById('catalog-banner-text').textContent =
+      `Using ${data.semester_label || 'the published'} timetable (${groups.size} group${groups.size === 1 ? '' : 's'}) — last updated ${updated}.`;
+
+    document.getElementById('upload-section').style.display = 'none';
+    buildCoursePicker();
+    document.getElementById('prefs-section').style.display = 'block';
+    setStep(3);
+  } catch (err) {
+    // Catalog fetch failing should never block the normal upload flow.
+    console.error('Could not load shared catalog:', err);
+  }
+}
+
+function showUploadForMissingGroup() {
+  document.getElementById('catalog-banner').classList.remove('show');
+  document.getElementById('upload-section').style.display = 'block';
+  document.getElementById('upload-section').scrollIntoView({ behavior: 'smooth' });
+  setStep(1);
+}
+
+async function publishCatalog() {
+  if (!reviewRows.length) { alert('Nothing to publish yet.'); return; }
+  const token = prompt('Admin token:');
+  if (!token) return;
+  const semester_label = prompt('Label for this data (e.g. "Fall 2026-27"), or leave blank:') || null;
+
+  const btn = document.getElementById('publish-catalog-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/catalog', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classes: reviewRows.map(normalizeSession), semester_label, token }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Publish failed.');
+    alert(`Published as the shared catalog (${data.classes.length} sessions). Students loading the app now will see this instead of the upload flow.`);
+  } catch (err) {
+    alert('Publish failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -520,3 +584,8 @@ function esc(str) {
   div.textContent = str == null ? '' : String(str);
   return div.innerHTML;
 }
+
+// =====================
+// Init
+// =====================
+loadSharedCatalog();

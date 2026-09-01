@@ -27,6 +27,13 @@
     <div class="step" id="step4"><span class="step-num">04</span>Result</div>
   </div>
 
+  <!-- Shown instead of the upload step when a shared catalog has been published -->
+  <div class="alert" id="catalog-banner">
+    <span class="alert-icon" id="catalog-banner-icon"></span>
+    <span id="catalog-banner-text" style="flex:1"></span>
+    <button class="btn-secondary alert-action" onclick="showUploadForMissingGroup()">My group isn't in here</button>
+  </div>
+
   <!-- STEP 1: Upload photos -->
   <div class="section" id="upload-section">
     <div class="section-title">Timetable Photos</div>
@@ -84,6 +91,7 @@
     <div class="btn-row" style="margin-top:14px">
       <button class="btn-secondary" onclick="addReviewRow()">+ Add Row</button>
       <button class="btn" onclick="confirmReview()">Confirm Data →</button>
+      <button class="btn-secondary" onclick="publishCatalog()" id="publish-catalog-btn" style="margin-left:auto">Publish to Shared Catalog</button>
     </div>
   </div>
 

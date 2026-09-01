@@ -1,11 +1,21 @@
 # Kumi: University Timetable Optimizer
 
-Kumi generates a personalized weekly timetable from a photo of your
-university's timetable board. Upload one or more photos, pick your
-required courses, set hard constraints and soft preferences, and get
-back the best valid schedule — computed by a deterministic backtracking
-search, not an LLM. Currently tuned for Tunis Business School (TBS),
-built to generalize to other schools later.
+Kumi generates a personalized weekly timetable from your university's
+timetable data. Pick your required courses, set hard constraints and
+soft preferences, and get back the best valid schedule — computed by a
+deterministic backtracking search, not an LLM. Currently tuned for
+Tunis Business School (TBS), built to generalize to other schools later.
+
+Two ways the course data gets in:
+
+- **Shared catalog (the default once one is published)** — one person
+  extracts and reviews the semester's timetable photos once, publishes
+  it, and everyone else just picks courses immediately. No upload step
+  for regular students.
+- **Per-session upload** — anyone can still upload their own photos,
+  either because no shared catalog has been published yet, or because
+  their specific group isn't in it. This is the only path today, since
+  the current semester's timetables haven't been published yet.
 
 ## How it works
 
@@ -24,6 +34,10 @@ flags uncertain ones as suggestions, everything undoable
 Review & correct extracted data in the browser (extraction isn't perfect)
         |
         v
+(optional) Publish as the shared catalog, admin-token gated, so
+everyone after this point skips straight to the next step
+        |
+        v
 Select required courses + hard constraints + soft preferences
         |
         v
@@ -33,24 +47,30 @@ Backtracking search (hard constraints) + weighted scoring (soft preferences)
 Best timetable(s), rendered as a weekly calendar
 ```
 
-Nothing is persisted server-side — extracted data and preferences live
-only in the browser for that session. There's no database. The one
-exception is a local disk cache keyed by each photo's content hash, so
-the same photo is never re-sent to Gemini twice (see below).
+Preferences and any per-session uploaded data live only in the
+browser — there's no database, and no accounts. Two things persist on
+the server as plain JSON files, not a database: the published shared
+catalog (one small, infrequently-written document) and a local disk
+cache keyed by each photo's content hash, so the same photo is never
+re-sent to Gemini twice (see below).
 
 ## Project layout
 
 ```
 backend/
-  main.py         # FastAPI app: /api/extract, /api/reconcile, /api/generate, serves frontend/
-  extraction.py   # Orchestrates: vision.py -> normalize -> merge -> dedupe -> reconcile -> validate -> cache
-  vision.py       # Photo -> raw structured data (Gemini)
-  reconcile.py    # AI cleanup of duplicate/misread course & instructor labels (Groq)
-  solver.py       # Backtracking search + weighted soft-preference scoring
-  models.py       # Pydantic request/response schemas
-  config.py       # Settings (API keys, CORS, models)
+  main.py          # FastAPI app: /api/extract, /api/reconcile, /api/catalog, /api/generate, serves frontend/
+  extraction.py    # Orchestrates: vision.py -> normalize -> merge -> dedupe -> reconcile -> validate -> cache
+  vision.py        # Photo -> raw structured data (Gemini)
+  reconcile.py     # AI cleanup of duplicate/misread course & instructor labels (Groq)
+  catalog_store.py # Reads/writes the published shared catalog (plain JSON file)
+  solver.py        # Backtracking search + weighted soft-preference scoring
+  models.py        # Pydantic request/response schemas
+  config.py        # Settings (API keys, CORS, models, admin token)
 data/
-  tbs_catalog.json # TBS's real course catalog, used to ground reconciliation
+  tbs_catalog.json       # TBS's real course catalog, used to ground reconciliation
+  shared_timetable.json  # Gitignored. The published shared catalog, if any --
+                          # real semester data, not source. Missing/empty is
+                          # the normal "nothing published yet" state.
 frontend/
   index.html, main.js, style.css   # Static UI, no build step
 normalize.py      # Field normalization (day names, time format, course codes)
@@ -88,6 +108,25 @@ before a student ever picks a course:
 - **Manual review** — the review table before course selection lets a
   student fix anything the automated layers didn't catch.
 
+## Shared catalog
+
+`GET /api/catalog` is what the frontend checks on load. Empty
+(`{"classes": [], ...}`) means nothing has been published — the app
+falls back to the upload flow exactly as if this feature didn't exist.
+Once something is published, regular students skip straight to course
+selection, with a banner showing what's loaded and a "My group isn't
+in here" link that reveals the upload section again (newly uploaded
+photos are *added* to the loaded catalog for that session, not
+published automatically).
+
+To publish: go through the normal upload → review → correct flow, then
+click **Publish to Shared Catalog** in the review step. It'll ask for
+the admin token (`ADMIN_TOKEN` below) and an optional label (e.g.
+"Fall 2026-27"). `POST /api/catalog` is rejected outright if
+`ADMIN_TOKEN` isn't set on the server — publishing fails closed, not
+open, so a deployment with no token configured simply can't be
+published to by anyone.
+
 ## Run locally
 
 1. Install dependencies:
@@ -102,7 +141,10 @@ before a student ever picks a course:
    ```
    Also set `GROQ_API_KEY` (free tier at [console.groq.com](https://console.groq.com)) to enable the
    optional AI reconciliation pass described above — extraction still
-   works without it, just without duplicate-label cleanup.
+   works without it, just without duplicate-label cleanup. Set
+   `ADMIN_TOKEN` to any secret string of your choosing to enable
+   publishing the shared catalog (see above) — leave it unset and that
+   feature is simply disabled.
 
 3. Start the server from the project root (module mode so `backend/`
    can import the root-level `normalize.py`):
@@ -121,9 +163,9 @@ included for [Render](https://render.com)'s free tier:
 
 1. Push this repo to GitHub, connect it on Render, it picks up
    `render.yaml` automatically.
-2. Set the `GEMINI_API_KEY` and `GROQ_API_KEY` environment variables in
-   the Render dashboard (kept out of `render.yaml` on purpose — never
-   commit them).
+2. Set the `GEMINI_API_KEY`, `GROQ_API_KEY`, and `ADMIN_TOKEN`
+   environment variables in the Render dashboard (kept out of
+   `render.yaml` on purpose — never commit them).
 
 Fly.io or Railway work the same way: `pip install -r requirements.txt`
 as the build step, `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`

@@ -1,13 +1,23 @@
+import hmac
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from backend import catalog_store
 from backend.config import settings
 from backend.extraction import extract_from_uploads, reconcile_and_validate
-from backend.models import ExtractResponse, GenerateRequest, GenerateResponse, ReconcileRequest
+from backend.models import (
+    ExtractResponse,
+    GenerateRequest,
+    GenerateResponse,
+    PublishCatalogRequest,
+    ReconcileRequest,
+    SharedCatalog,
+)
 from backend.solver import generate_timetables
 
 app = FastAPI(title="Kumi")
@@ -58,6 +68,27 @@ async def reconcile_endpoint(request: ReconcileRequest) -> ExtractResponse:
 
     classes, warnings, suggestions, reconcile_note = await reconcile_and_validate(request.classes)
     return ExtractResponse(classes=classes, warnings=warnings, suggestions=suggestions, reconcile_note=reconcile_note)
+
+
+@app.get("/api/catalog", response_model=SharedCatalog)
+def get_catalog() -> SharedCatalog:
+    """The shared timetable everyone loads by default. Empty classes means
+    no semester has been published yet -- the frontend falls back to the
+    upload flow in that case, not an error state."""
+    return catalog_store.load_catalog()
+
+
+@app.post("/api/catalog", response_model=SharedCatalog)
+def publish_catalog(request: PublishCatalogRequest) -> SharedCatalog:
+    if not settings.admin_token:
+        raise HTTPException(status_code=403, detail="Publishing is disabled (no admin token configured).")
+    if not hmac.compare_digest(request.token, settings.admin_token):
+        raise HTTPException(status_code=403, detail="Invalid admin token.")
+    if not request.classes:
+        raise HTTPException(status_code=400, detail="No classes to publish.")
+
+    updated_at = datetime.now(timezone.utc).isoformat()
+    return catalog_store.save_catalog(request.classes, request.semester_label, updated_at)
 
 
 @app.post("/api/generate", response_model=GenerateResponse)
