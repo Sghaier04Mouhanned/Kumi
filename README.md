@@ -1,6 +1,6 @@
-# SchedAI: University Timetable Optimizer
+# Kumi: University Timetable Optimizer
 
-SchedAI generates a personalized weekly timetable from a photo of your
+Kumi generates a personalized weekly timetable from a photo of your
 university's timetable board. Upload one or more photos, pick your
 required courses, set hard constraints and soft preferences, and get
 back the best valid schedule — computed by a deterministic backtracking
