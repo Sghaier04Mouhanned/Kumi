@@ -30,6 +30,15 @@ CATALOG_PATH = Path(__file__).resolve().parent.parent / "data" / "tbs_catalog.js
 MAX_RATE_LIMIT_RETRIES = 2
 RATE_LIMIT_BACKOFF_SECONDS = 5.0
 
+# A real multi-photo upload can produce far more course/instructor entries
+# than any single test batch -- confirmed the model can be cut off
+# mid-JSON (finish_reason "length") on a real 8-photo/60-session upload at
+# the old fixed 2000 cap. Start generous and grow if still truncated,
+# rather than guessing one fixed number that works for every class size.
+INITIAL_MAX_TOKENS = 4000
+MAX_MAX_TOKENS = 16000
+MAX_TRUNCATION_RETRIES = 2
+
 CLOSEST_MATCH_COUNT = 2
 CLOSEST_MATCH_MIN_SIMILARITY = 0.55  # below this, not worth showing the model as a hint
 
@@ -190,7 +199,7 @@ async def reconcile(classes: list[ClassSession]) -> tuple[list[ClassSession], li
     payload = {
         "model": settings.groq_model,
         "temperature": 0.1,
-        "max_tokens": 2000,
+        "max_tokens": INITIAL_MAX_TOKENS,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": _build_user_prompt(course_entries, instructor_entries)},
@@ -198,19 +207,30 @@ async def reconcile(classes: list[ClassSession]) -> tuple[list[ClassSession], li
     }
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            rate_limit_attempts = 0
+            truncation_attempts = 0
+            while True:
                 resp = await client.post(
                     GROQ_URL,
                     headers={"Authorization": f"Bearer {settings.groq_api_key}", "Content-Type": "application/json"},
                     json=payload,
                 )
-                if resp.status_code == 429 and attempt < MAX_RATE_LIMIT_RETRIES:
+                if resp.status_code == 429 and rate_limit_attempts < MAX_RATE_LIMIT_RETRIES:
+                    rate_limit_attempts += 1
                     wait = float(resp.headers.get("retry-after", RATE_LIMIT_BACKOFF_SECONDS))
                     await asyncio.sleep(min(wait, 15.0))
                     continue
                 resp.raise_for_status()
-                content = resp.json()["choices"][0]["message"]["content"]
+                choice = resp.json()["choices"][0]
+                content = choice["message"]["content"]
+
+                if choice.get("finish_reason") == "length" and payload["max_tokens"] < MAX_MAX_TOKENS \
+                        and truncation_attempts < MAX_TRUNCATION_RETRIES:
+                    truncation_attempts += 1
+                    payload["max_tokens"] = min(payload["max_tokens"] * 2, MAX_MAX_TOKENS)
+                    continue
+
                 parsed = _parse_json_response(content)
                 break
     except Exception as exc:  # noqa: BLE001 - never let cleanup break extraction
