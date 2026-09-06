@@ -5,6 +5,18 @@ const DAY_ORDER = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const CORE_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
 let rowIdCounter = 0;
 
+// TBS's course coding system (handbook section 2.2): the first digit of a
+// course's number is its academic level -- 1=Freshman, 2=Sophomore,
+// 3=Junior, 4=Senior (e.g. BCOR210 -> level digit "2" -> Sophomore).
+const LEVELS = ['Freshman', 'Sophomore', 'Junior', 'Senior'];
+const LEVEL_BY_DIGIT = { '1': 'Freshman', '2': 'Sophomore', '3': 'Junior', '4': 'Senior' };
+const MAX_SELECTED_COURSES = 7;
+
+function levelFromCode(code) {
+  const match = (code || '').match(/(\d+)$/);
+  return match ? (LEVEL_BY_DIGIT[match[1][0]] || null) : null;
+}
+
 // Inline SVG icons -- no emoji/dingbat glyphs anywhere in the UI.
 const ICON_FILE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="1"/><circle cx="9" cy="10" r="2"/><path d="M21 15l-5-4-9 7"/></svg>';
 const ICON_CLOSE = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -25,6 +37,7 @@ let freeDays = new Set();
 let lastResults = [];
 let activeResultIndex = 0;
 let currentSuggestions = [];  // AI reconciliation suggestions not yet applied
+let selectedLevel = null;     // null = show courses from every level
 
 // =====================
 // Step 1: Upload
@@ -351,21 +364,58 @@ function buildCoursePicker() {
   const courses = new Map(); // code -> name
   reviewRows.forEach((r) => { if (!courses.has(r.course_code)) courses.set(r.course_code, r.course_name || r.course_code); });
 
+  // Level filter -- single-select, "All" (null) shows everything. A course
+  // whose code doesn't match TBS's level-digit convention (a non-TBS photo,
+  // or an unrecognized code) always shows, regardless of the filter.
+  const levelContainer = document.getElementById('chips-level');
+  levelContainer.innerHTML = '';
+  [null, ...LEVELS].forEach((level) => {
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (selectedLevel === level ? ' selected' : '');
+    chip.textContent = level || 'All Levels';
+    chip.onclick = () => { selectedLevel = level; buildCoursePicker(); };
+    levelContainer.appendChild(chip);
+  });
+
   const container = document.getElementById('chips-courses');
   container.innerHTML = '';
   [...courses.entries()].sort().forEach(([code, name]) => {
+    const level = levelFromCode(code);
+    const isSelected = selectedCourses.has(code);
+    // Always show an already-selected course so filtering never hides a pick.
+    if (!isSelected && selectedLevel && level && level !== selectedLevel) return;
+
     const chip = document.createElement('div');
-    chip.className = 'chip';
+    chip.className = 'chip' + (isSelected ? ' selected' : '');
     chip.textContent = `${code} — ${name}`;
     chip.onclick = () => {
-      if (selectedCourses.has(code)) { selectedCourses.delete(code); chip.classList.remove('selected'); }
-      else { selectedCourses.add(code); chip.classList.add('selected'); }
-      buildPreferenceChips();
+      if (selectedCourses.has(code)) {
+        selectedCourses.delete(code);
+      } else {
+        if (selectedCourses.size >= MAX_SELECTED_COURSES) {
+          showCourseLimitNote(`You can select at most ${MAX_SELECTED_COURSES} courses -- remove one before adding another.`);
+          return;
+        }
+        selectedCourses.add(code);
+      }
+      hideCourseLimitNote();
+      buildCoursePicker(); // rebuilds the chip list AND preference chips
     };
     container.appendChild(chip);
   });
 
   buildPreferenceChips();
+}
+
+function showCourseLimitNote(message) {
+  const box = document.getElementById('course-limit-note');
+  document.getElementById('course-limit-icon').innerHTML = ICON_INFO;
+  document.getElementById('course-limit-text').textContent = message;
+  box.classList.add('show');
+}
+
+function hideCourseLimitNote() {
+  document.getElementById('course-limit-note').classList.remove('show');
 }
 
 function buildPreferenceChips() {

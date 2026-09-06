@@ -91,10 +91,17 @@ def publish_catalog(request: PublishCatalogRequest) -> SharedCatalog:
     return catalog_store.save_catalog(request.classes, request.semester_label, updated_at)
 
 
+# Matches the frontend's own cap (kept here too since a request can bypass
+# the UI entirely) -- a realistic max course load, not an arbitrary number.
+MAX_SELECTED_COURSES = 7
+
+
 @app.post("/api/generate", response_model=GenerateResponse)
 def generate(request: GenerateRequest) -> GenerateResponse:
     if not request.selected_courses:
         raise HTTPException(status_code=400, detail="No courses selected.")
+    if len(request.selected_courses) > MAX_SELECTED_COURSES:
+        raise HTTPException(status_code=400, detail=f"You can select at most {MAX_SELECTED_COURSES} courses.")
     return generate_timetables(request)
 
 
