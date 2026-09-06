@@ -108,6 +108,18 @@ small typos. Examples: "MIS20" and "MIS200" are both "Management Information Sys
 "R. Esghaier" and "R. Esghair" are the same person; "BCOR200" and "BOOK200" can be the same \
 course misread (C/R confused with O/K), especially when other evidence supports it.
 
+Instructor names at this university are often Arabic names Latin-transliterated, which \
+produces the same real name spelled multiple different ways -- not OCR error, but the same \
+underlying issue of two labels for one real person. Confirmed real example: "G. Aydi" and \
+"Gh. Aidi" are the same person, even though the first initial was abbreviated to a different \
+length ("G." vs "Gh.") and the surname's vowels were transliterated differently ("Aydi" vs \
+"Aidi", a y/i swap). Treat that combination -- a first-initial abbreviated to a different \
+length, plus a surname that becomes identical once a common y/i, a/e, or doubled-consonant \
+transliteration difference is normalized away -- as strong evidence of the same person, same \
+bar as the OCR examples above. This is still just one signal: still don't merge two names \
+that are only vaguely similar, or that share a surname but have clearly different first \
+names/initials.
+
 Each course entry lists its sessions (day, time, group). A single student group cannot \
 physically attend two different courses at the same day and time, so if two course-code \
 variants share a session with the exact same day, time, and group, treat that as strong \
