@@ -68,6 +68,39 @@ def _closest_catalog_codes(code: str) -> list[dict]:
         if ratio >= CLOSEST_MATCH_MIN_SIMILARITY
     ]
 
+
+# A code can be a real, valid catalog entry on its own and STILL be wrong --
+# e.g. a transposed digit swaps it for a different real course (confirmed on
+# real data: "NBC120" paired with the name "French II", which is actually
+# NBC130; NBC120 is really "English Communication Skills"). The existing
+# catalog-code check never catches this since it only fires when a code
+# ISN'T already an exact match. This is a separate, purely deterministic
+# check: does this code's paired NAME look nothing like that code's real
+# name, while matching a DIFFERENT code's real name almost exactly? That
+# specific pattern is strong enough evidence to auto-correct without
+# needing the LLM at all.
+OWN_NAME_MISMATCH_BELOW = 0.75
+OTHER_NAME_MATCH_ABOVE = 0.85
+
+
+def _find_code_via_leaked_name(code: str, name: str) -> str | None:
+    if code not in _CATALOG or not name:
+        return None
+    own_similarity = difflib.SequenceMatcher(None, name.lower(), _CATALOG[code].lower()).ratio()
+    if own_similarity >= OWN_NAME_MISMATCH_BELOW:
+        return None  # the name fits its own code well enough -- nothing to fix
+
+    best_ratio, best_code = 0.0, None
+    for other_code, other_name in _CATALOG.items():
+        if other_code == code:
+            continue
+        ratio = difflib.SequenceMatcher(None, name.lower(), other_name.lower()).ratio()
+        if ratio > best_ratio:
+            best_ratio, best_code = ratio, other_code
+
+    return best_code if best_ratio >= OTHER_NAME_MATCH_ABOVE else None
+
+
 SYSTEM_PROMPT = """You clean up course and instructor data extracted via OCR from a \
 university timetable photo. OCR sometimes misreads letters or digits, so the same real \
 course or professor can appear under two or more different-looking spellings -- not just \
@@ -158,6 +191,13 @@ def _parse_json_response(text: str) -> dict:
 
 
 async def reconcile(classes: list[ClassSession]) -> tuple[list[ClassSession], list[ReconcileSuggestion], str | None]:
+    # Deterministic, no API needed -- runs even if Groq isn't configured.
+    for item in classes:
+        fixed_code = _find_code_via_leaked_name(item.course_code, item.course_name)
+        if fixed_code:
+            item.original_course_code = item.original_course_code or item.course_code
+            item.course_code = fixed_code
+
     if not settings.groq_api_key:
         return classes, [], "AI cleanup skipped: GROQ_API_KEY not configured."
 
