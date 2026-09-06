@@ -7,14 +7,25 @@ its (small, paid) quota during normal development/testing. Gemini's free
 tier is generous enough for a low-traffic student project.
 """
 
+import asyncio
 import base64
 import json
+import random
 
 import httpx
 
 from backend.config import settings
 
 GEMINI_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+# Confirmed on a real 10-photo batch: firing every upload concurrently blew
+# through Gemini's free-tier rate limit and overloaded it (5 of 10 photos
+# failed with 429/503), and there was no retry at all -- one rate-limit hit
+# just silently lost that photo's data. Exponential backoff with jitter so
+# several photos retrying at once don't all collide on the same instant.
+MAX_RETRIES = 4
+BASE_BACKOFF_SECONDS = 3.0
+RETRYABLE_STATUS_CODES = {429, 503}
 
 SYSTEM_INSTRUCTION = """You extract structured class schedule data from a photo of a \
 university timetable board or grid. Read every visible session carefully: course name, \
@@ -62,28 +73,33 @@ async def extract_photo(content: bytes, mime_type: str) -> tuple[str | None, lis
     """Returns (group_number_or_None, schedule_rows) -- raises on failure, same
     contract the caller previously got from the LandingAI parse+extract pair."""
     url = GEMINI_URL_TEMPLATE.format(model=settings.gemini_model)
+    payload = {
+        "system_instruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
+        "contents": [{
+            "parts": [
+                {"text": "Extract this timetable photo into the required JSON shape."},
+                {"inline_data": {"mime_type": mime_type, "data": base64.b64encode(content).decode("ascii")}},
+            ],
+        }],
+        "generationConfig": {
+            "temperature": 0.1,
+            "response_mime_type": "application/json",
+            "response_schema": RESPONSE_SCHEMA,
+        },
+    }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-            url,
-            params={"key": settings.gemini_api_key},
-            json={
-                "system_instruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
-                "contents": [{
-                    "parts": [
-                        {"text": "Extract this timetable photo into the required JSON shape."},
-                        {"inline_data": {"mime_type": mime_type, "data": base64.b64encode(content).decode("ascii")}},
-                    ],
-                }],
-                "generationConfig": {
-                    "temperature": 0.1,
-                    "response_mime_type": "application/json",
-                    "response_schema": RESPONSE_SCHEMA,
-                },
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
+        for attempt in range(MAX_RETRIES + 1):
+            resp = await client.post(url, params={"key": settings.gemini_api_key}, json=payload)
+            if resp.status_code in RETRYABLE_STATUS_CODES and attempt < MAX_RETRIES:
+                retry_after = resp.headers.get("retry-after")
+                wait = float(retry_after) if retry_after else BASE_BACKOFF_SECONDS * (2 ** attempt)
+                wait += random.uniform(0, 1.5)  # jitter so concurrent photos don't retry in lockstep
+                await asyncio.sleep(min(wait, 30.0))
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            break
 
     text = data["candidates"][0]["content"]["parts"][0]["text"]
     parsed = json.loads(text)
