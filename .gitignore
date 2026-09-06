@@ -132,3 +132,7 @@ dmypy.json
 
 # Published shared timetable -- real semester data, not source
 data/shared_timetable.json
+
+# Real student/department timetable photos used for local testing --
+# real names and schedule data, kept local-only, never pushed.
+time tables/
