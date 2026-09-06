@@ -76,6 +76,21 @@ def normalize_course(code: str) -> str:
     return code.replace(" ", "").upper()
 
 
+def normalize_group(group: str) -> str:
+    """Confirmed on real data: one photo's group label came through as a
+    bare "5" while every other photo's came through as "G1"/"G2"/etc.,
+    since that photo's on-screen label really was just the digit. Reading
+    "BCOR111 - 5" next to "BCOR111 - G1" in the UI is confusing even
+    though both are valid -- give every purely-numeric label the same "G"
+    prefix so they read consistently."""
+    if not group:
+        return "UNKNOWN"
+    group = group.strip()
+    if group.isdigit():
+        return f"G{group}"
+    return group.upper()
+
+
 def normalize_schedule(schedule: list, group_number: str):
     """Returns (normalized_items, skipped_rows). A row whose time can't be
     parsed is skipped rather than raising -- one unreadable row in a photo
@@ -95,7 +110,7 @@ def normalize_schedule(schedule: list, group_number: str):
 
         normalized_items.append({
             **item,
-            "group_number": group_number,
+            "group_number": normalize_group(group_number),
             "day": normalize_day(item.get("day")),
             "course_code": normalize_course(item.get("course_code")),
             "time_start": start,
