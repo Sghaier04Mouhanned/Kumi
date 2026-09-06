@@ -220,6 +220,7 @@ function renderReviewTable() {
       <td><input type="time" value="${esc(row.time_start)}" oninput="updateRow(${row.id},'time_start',this.value)"/></td>
       <td><input type="time" value="${esc(row.time_end)}" oninput="updateRow(${row.id},'time_end',this.value)"/></td>
       <td><input value="${esc(row.group_number)}" oninput="updateRow(${row.id},'group_number',this.value)"/></td>
+      <td><input value="${esc(row.class_number || '')}" oninput="updateRow(${row.id},'class_number',this.value)"/></td>
       <td><button class="row-delete" onclick="deleteRow(${row.id})">${ICON_CLOSE}</button></td>
     </tr>
   `).join('');
@@ -338,7 +339,7 @@ function addReviewRow() {
   reviewRows.push({
     id: rowIdCounter++,
     course_name: '', course_code: '', course_type: '', instructor_name: '',
-    day: 'MON', time_start: '08:00', time_end: '09:30', group_number: 'G1',
+    day: 'MON', time_start: '08:00', time_end: '09:30', group_number: 'G1', class_number: '',
   });
   renderReviewTable();
 }
@@ -620,7 +621,10 @@ function renderCalendar(sessions) {
               ${typeLabel ? `<div class="class-type">${esc(typeLabel)}</div>` : ''}
               <div class="class-info">${esc(c.instructor_name || '—')}</div>
               <div class="class-info">${c.time_start}–${c.time_end}</div>
-              <div><span class="class-badge">${esc(c.group_number)}</span></div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap">
+                <span class="class-badge">${esc(c.group_number)}</span>
+                ${c.class_number ? `<span class="class-badge">${esc(c.class_number)}</span>` : ''}
+              </div>
             </div>`;
         });
         html += '</td>';
