@@ -636,6 +636,19 @@ function esc(str) {
 }
 
 // =====================
+// Start over
+// =====================
+function startOver() {
+  // A full reload is the simplest way to guarantee every piece of session
+  // state (uploaded files, extracted/edited rows, selections, results) is
+  // truly gone -- and it re-checks the shared catalog cleanly too, rather
+  // than trying to hand-reset a dozen variables and risk missing one.
+  if (confirm('Clear everything from this session (uploads, extracted data, selections) and start over?')) {
+    location.reload();
+  }
+}
+
+// =====================
 // Init
 // =====================
 loadSharedCatalog();
