@@ -151,7 +151,19 @@ def generate_timetables(request: GenerateRequest) -> GenerateResponse:
     prefs = request.preferences
     selected = request.selected_courses
 
+    blocked_instructors = set(hc.blocked_instructors)
+
+    # A course's lecture and tutorial share one group and are always taken
+    # together, often with different instructors. So blocking an instructor
+    # has to block their WHOLE group -- lecture and tutorial alike -- rather
+    # than just the one session they personally teach; otherwise a student
+    # could end up with a tutorial and no matching lecture (or vice versa).
     blocked_section_keys = {(g.course_code, g.group_number) for g in hc.blocked_sections}
+    if blocked_instructors:
+        for s in request.classes:
+            if s.course_code in selected and s.instructor_name in blocked_instructors:
+                blocked_section_keys.add((s.course_code, s.group_number))
+
     blocked_days = set(hc.blocked_days)
 
     def is_blocked(s: ClassSession) -> bool:

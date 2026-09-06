@@ -32,6 +32,7 @@ let selectedCourses = new Set();
 let preferredGroups = new Set();     // bare group numbers, e.g. "G1" -- a student's
 let blockedGroups = new Set();       // group is the same set of peers across every course
 let preferredInstructors = new Set();
+let blockedInstructors = new Set();  // hard-blocks that instructor's whole group (lecture + tutorial)
 let blockedDays = new Set();
 let freeDays = new Set();
 let lastResults = [];
@@ -442,7 +443,8 @@ function buildPreferenceChips() {
 
   buildToggleChips('chips-preferred-sections', groups, preferredGroups, false, formatGroupLevelLabel, blockedGroups);
   buildToggleChips('chips-blocked-sections', groups, blockedGroups, true, formatGroupLevelLabel, preferredGroups);
-  buildToggleChips('chips-preferred-instructors', instructors, preferredInstructors, false);
+  buildToggleChips('chips-preferred-instructors', instructors, preferredInstructors, false, null, blockedInstructors);
+  buildToggleChips('chips-blocked-instructors', instructors, blockedInstructors, true, null, preferredInstructors);
   buildToggleChips('chips-blocked-days', CORE_DAYS, blockedDays, true, null, freeDays);
   buildToggleChips('chips-free-days', CORE_DAYS, freeDays, false, null, blockedDays);
 }
@@ -501,6 +503,7 @@ async function generate() {
     selected_courses: [...selectedCourses],
     hard_constraints: {
       blocked_sections: expandGroupToSections(blockedGroups),
+      blocked_instructors: [...blockedInstructors],
       blocked_days: [...blockedDays],
       blocked_time_ranges: [],
     },

@@ -67,6 +67,7 @@ class TimeRange(BaseModel):
 
 class HardConstraints(BaseModel):
     blocked_sections: list[GroupRef] = []
+    blocked_instructors: list[str] = []
     blocked_days: list[str] = []
     blocked_time_ranges: list[TimeRange] = []
 
