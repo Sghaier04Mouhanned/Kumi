@@ -91,6 +91,24 @@ def normalize_group(group: str) -> str:
     return group.upper()
 
 
+def normalize_course_type(course_type: str) -> str:
+    """Confirmed on real data: the same session type comes back labeled
+    differently across photos -- "L", "(L)", "Lecture" all mean the same
+    thing, likewise "T"/"(T)"/"Tutorial". Collapse them to one canonical
+    label so the review table doesn't show the same type three different
+    ways depending on which photo a row came from."""
+    if not course_type:
+        return ""
+    t = course_type.strip().lower().strip("()")
+    if t == "l" or "lec" in t:
+        return "Lecture"
+    if t == "t" or "tut" in t:
+        return "Tutorial"
+    if "lab" in t:
+        return "Lab"
+    return course_type.strip()
+
+
 def normalize_schedule(schedule: list, group_number: str):
     """Returns (normalized_items, skipped_rows). A row whose time can't be
     parsed is skipped rather than raising -- one unreadable row in a photo
@@ -113,6 +131,7 @@ def normalize_schedule(schedule: list, group_number: str):
             "group_number": normalize_group(group_number),
             "day": normalize_day(item.get("day")),
             "course_code": normalize_course(item.get("course_code")),
+            "course_type": normalize_course_type(item.get("course_type")),
             "time_start": start,
             "time_end": end
         })
