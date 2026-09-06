@@ -76,6 +76,13 @@ def normalize_course(code: str) -> str:
     return code.replace(" ", "").upper()
 
 
+# Confirmed on real data: some photos label a group as "G10 (22)" -- the
+# "(22)" is the class's headcount, not part of the group's identity. Left
+# in place, "G10 (22)" and "G10" from a different photo would be treated as
+# two different groups instead of the same one.
+_GROUP_SIZE_SUFFIX_RE = re.compile(r"\s*\(\d+\)\s*$")
+
+
 def normalize_group(group: str) -> str:
     """Confirmed on real data: one photo's group label came through as a
     bare "5" while every other photo's came through as "G1"/"G2"/etc.,
@@ -85,7 +92,7 @@ def normalize_group(group: str) -> str:
     prefix so they read consistently."""
     if not group:
         return "UNKNOWN"
-    group = group.strip()
+    group = _GROUP_SIZE_SUFFIX_RE.sub("", group.strip()).strip()
     if group.isdigit():
         return f"G{group}"
     return group.upper()
