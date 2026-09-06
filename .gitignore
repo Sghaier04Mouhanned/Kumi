@@ -129,3 +129,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Published shared timetable -- real semester data, not source
+data/shared_timetable.json

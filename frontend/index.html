@@ -16,7 +16,10 @@
         <div class="logo">Kumi</div>
         <div class="logo-sub">University Timetable Optimizer</div>
       </div>
-      <div class="badge">Free &middot; Deterministic &middot; No account needed</div>
+      <div style="text-align:right">
+        <div class="badge">Free &middot; Deterministic &middot; No account needed</div>
+        <div style="margin-top:8px"><button class="json-toggle" onclick="startOver()">Start Over</button></div>
+      </div>
     </div>
   </header>
 
@@ -25,6 +28,13 @@
     <div class="step" id="step2"><span class="step-num">02</span>Review Data</div>
     <div class="step" id="step3"><span class="step-num">03</span>Preferences</div>
     <div class="step" id="step4"><span class="step-num">04</span>Result</div>
+  </div>
+
+  <!-- Shown instead of the upload step when a shared catalog has been published -->
+  <div class="alert" id="catalog-banner">
+    <span class="alert-icon" id="catalog-banner-icon"></span>
+    <span id="catalog-banner-text" style="flex:1"></span>
+    <button class="btn-secondary alert-action" onclick="showUploadForMissingGroup()">My group isn't in here</button>
   </div>
 
   <!-- STEP 1: Upload photos -->
@@ -75,7 +85,7 @@
         <thead>
           <tr>
             <th>Course Name</th><th>Code</th><th>Type</th><th>Instructor</th>
-            <th>Day</th><th>Start</th><th>End</th><th>Group</th><th></th>
+            <th>Day</th><th>Start</th><th>End</th><th>Group</th><th>Room</th><th></th>
           </tr>
         </thead>
         <tbody id="review-tbody"></tbody>
@@ -84,19 +94,28 @@
     <div class="btn-row" style="margin-top:14px">
       <button class="btn-secondary" onclick="addReviewRow()">+ Add Row</button>
       <button class="btn" onclick="confirmReview()">Confirm Data →</button>
+      <button class="btn-secondary" onclick="publishCatalog()" id="publish-catalog-btn" style="margin-left:auto">Publish to Shared Catalog</button>
     </div>
   </div>
 
   <!-- STEP 3: Courses & Preferences -->
   <div class="section" id="prefs-section" style="display:none">
     <div class="section-title">Select Your Courses</div>
+    <p class="info-text" style="margin-bottom:10px">Filter by level, then pick up to 7 courses.</p>
+    <div class="chips" id="chips-level" style="margin-bottom:14px"></div>
     <div class="chips" id="chips-courses"></div>
+    <div class="alert" id="course-limit-note"><span class="alert-icon" id="course-limit-icon"></span><span id="course-limit-text" style="flex:1"></span></div>
 
     <div class="section-title" style="margin-top:28px">Hard Constraints (must hold)</div>
     <div class="pref-grid">
       <div class="pref-group">
-        <label>Cannot Attend These Sections</label>
+        <label>Groups You Cannot Be In</label>
         <div class="chips avoid" id="chips-blocked-sections"></div>
+      </div>
+      <div class="pref-group">
+        <label>Instructors You Cannot Have</label>
+        <p class="info-text" style="margin-bottom:8px">Blocks that instructor's whole group -- lecture and tutorial together -- so you're moved to a different group instead.</p>
+        <div class="chips avoid" id="chips-blocked-instructors"></div>
       </div>
       <div class="pref-group">
         <label>Cannot Attend These Days</label>
@@ -107,7 +126,7 @@
     <div class="section-title" style="margin-top:28px">Preferences (nice to have)</div>
     <div class="pref-grid">
       <div class="pref-group">
-        <label>Preferred Sections/Groups</label>
+        <label>Preferred Group</label>
         <div class="chips" id="chips-preferred-sections"></div>
       </div>
       <div class="pref-group">

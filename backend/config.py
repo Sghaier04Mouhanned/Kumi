@@ -13,5 +13,10 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-120b"
 
+    # Gates POST /api/catalog (publishing the shared timetable everyone
+    # loads by default). Empty means publishing is disabled entirely --
+    # fail closed, never fail open.
+    admin_token: str = ""
+
 
 settings = Settings()

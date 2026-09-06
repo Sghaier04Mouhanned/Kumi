@@ -151,18 +151,37 @@ def generate_timetables(request: GenerateRequest) -> GenerateResponse:
     prefs = request.preferences
     selected = request.selected_courses
 
-    blocked_section_keys = {(g.course_code, g.group_number) for g in hc.blocked_sections}
+    blocked_instructors = set(hc.blocked_instructors)
     blocked_days = set(hc.blocked_days)
 
-    def is_blocked(s: ClassSession) -> bool:
+    def _hits_day_or_time_block(s: ClassSession) -> bool:
         if s.day in blocked_days:
-            return True
-        if (s.course_code, s.group_number) in blocked_section_keys:
             return True
         return any(
             s.day == tr.day and _ranges_overlap(s.time_start, s.time_end, tr.start, tr.end)
             for tr in hc.blocked_time_ranges
         )
+
+    # A course's lecture and tutorial share one group and are always taken
+    # together, often on different days with different instructors. So ANY
+    # hard constraint that would exclude one of those two sessions -- a
+    # blocked instructor, a blocked day, or a blocked time range -- has to
+    # exclude their WHOLE group, not just the one session that triggered it.
+    # Filtering session-by-session (as this used to) could silently strip a
+    # group down to just its tutorial (or just its lecture) and still hand
+    # that incomplete group to the solver as a normal, valid option.
+    blocked_section_keys = {(g.course_code, g.group_number) for g in hc.blocked_sections}
+    for s in request.classes:
+        if s.course_code not in selected:
+            continue
+        if (
+            (s.instructor_name and s.instructor_name in blocked_instructors)
+            or _hits_day_or_time_block(s)
+        ):
+            blocked_section_keys.add((s.course_code, s.group_number))
+
+    def is_blocked(s: ClassSession) -> bool:
+        return (s.course_code, s.group_number) in blocked_section_keys
 
     filtered = [s for s in request.classes if s.course_code in selected and not is_blocked(s)]
 

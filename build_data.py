@@ -12,7 +12,9 @@ def load_all_schedules(folder="processed"):
             data = json.load(f)
 
         group = data["group_info"]["group_number"]
-        normalized = normalize_schedule(data["schedule"], group)
+        normalized, skipped = normalize_schedule(data["schedule"], group)
+        for item, reason in skipped:
+            print(f"  skipped a row in {file.name}: {reason} ({item.get('course_code')})")
 
         all_items.extend(normalized)
 

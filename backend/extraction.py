@@ -21,6 +21,7 @@ from backend.reconcile import reconcile
 from normalize import merge_contiguous_sessions, normalize_schedule
 
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"}
+MAX_CONCURRENT_EXTRACTIONS = 3
 
 # Keyed by the exact bytes of the uploaded photo -- the same image is never
 # sent to the vision API twice. Repeated dev/test runs with the same file
@@ -118,11 +119,18 @@ async def extract_from_uploads(
 ) -> tuple[list[ClassSession], list[ExtractWarning], list[ReconcileSuggestion], str | None]:
     labels = group_labels or [""] * len(files)
 
+    # Confirmed on a real 10-photo upload: firing every photo at Gemini at
+    # once overwhelmed its free tier even with per-request retries (429s and
+    # 503s piling up). A small concurrency cap keeps a multi-photo upload
+    # from ever looking like a burst to begin with.
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTIONS)
+
     async def run(file: UploadFile, label: str):
-        try:
-            return await _extract_one(file, label)
-        except Exception as exc:  # noqa: BLE001 - surfaced to the caller as a per-file warning
-            return exc
+        async with semaphore:
+            try:
+                return await _extract_one(file, label)
+            except Exception as exc:  # noqa: BLE001 - surfaced to the caller as a per-file warning
+                return exc
 
     raw_results = await asyncio.gather(*(run(f, label) for f, label in zip(files, labels)))
 
@@ -136,7 +144,13 @@ async def extract_from_uploads(
 
         group_number, schedule = result
         try:
-            normalized = normalize_schedule(schedule, group_number)
+            normalized, skipped_rows = normalize_schedule(schedule, group_number)
+            for skipped_item, reason in skipped_rows:
+                label = skipped_item.get("course_code") or skipped_item.get("course_name") or "a row"
+                warnings.append(ExtractWarning(
+                    filename=file.filename or "unknown",
+                    message=f"Couldn't read the time for {label} ({reason}) -- add it manually in the review table.",
+                ))
             # Merge per-photo first: a course split across adjacent grid
             # time-slots only ever happens within one photo's table.
             all_items.extend(merge_contiguous_sessions(normalized))

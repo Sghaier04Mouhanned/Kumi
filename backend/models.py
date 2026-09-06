@@ -42,6 +42,18 @@ class ReconcileRequest(BaseModel):
     classes: list[ClassSession]
 
 
+class SharedCatalog(BaseModel):
+    classes: list[ClassSession] = []
+    updated_at: str | None = None
+    semester_label: str | None = None
+
+
+class PublishCatalogRequest(BaseModel):
+    classes: list[ClassSession]
+    semester_label: str | None = None
+    token: str
+
+
 class GroupRef(BaseModel):
     course_code: str
     group_number: str
@@ -55,6 +67,7 @@ class TimeRange(BaseModel):
 
 class HardConstraints(BaseModel):
     blocked_sections: list[GroupRef] = []
+    blocked_instructors: list[str] = []
     blocked_days: list[str] = []
     blocked_time_ranges: list[TimeRange] = []
 
