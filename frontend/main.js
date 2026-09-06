@@ -29,8 +29,8 @@ const ICON_INFO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 let uploadedFiles = [];      // [{file, groupLabel}]
 let reviewRows = [];         // [{id, course_name, course_code, course_type, instructor_name, day, time_start, time_end, group_number}]
 let selectedCourses = new Set();
-let preferredSections = new Set();   // "CODE|GROUP"
-let blockedSections = new Set();     // "CODE|GROUP"
+let preferredGroups = new Set();     // bare group numbers, e.g. "G1" -- a student's
+let blockedGroups = new Set();       // group is the same set of peers across every course
 let preferredInstructors = new Set();
 let blockedDays = new Set();
 let freeDays = new Set();
@@ -421,19 +421,34 @@ function hideCourseLimitNote() {
 function buildPreferenceChips() {
   const relevant = reviewRows.filter((r) => selectedCourses.has(r.course_code));
 
-  const sectionKeys = [...new Set(relevant.map((r) => `${r.course_code}|${r.group_number}`))].sort();
+  // A student's group is the same set of peers across all their courses, so
+  // blocking/preferring "G3" applies everywhere G3 shows up -- not chosen
+  // per course.
+  const groups = [...new Set(relevant.map((r) => r.group_number))].sort();
   const instructors = [...new Set(relevant.map((r) => r.instructor_name).filter(Boolean))].sort();
 
-  buildToggleChips('chips-preferred-sections', sectionKeys, preferredSections, false, formatSectionLabel, blockedSections);
-  buildToggleChips('chips-blocked-sections', sectionKeys, blockedSections, true, formatSectionLabel, preferredSections);
+  buildToggleChips('chips-preferred-sections', groups, preferredGroups, false, null, blockedGroups);
+  buildToggleChips('chips-blocked-sections', groups, blockedGroups, true, null, preferredGroups);
   buildToggleChips('chips-preferred-instructors', instructors, preferredInstructors, false);
   buildToggleChips('chips-blocked-days', CORE_DAYS, blockedDays, true, null, freeDays);
   buildToggleChips('chips-free-days', CORE_DAYS, freeDays, false, null, blockedDays);
 }
 
-function formatSectionLabel(key) {
-  const [code, group] = key.split('|');
-  return `${code} · ${group}`;
+// Expands a set of selected group numbers into every {course_code,
+// group_number} pair the backend needs, scoped to the currently-selected
+// courses (a group selection only matters for courses the student is
+// actually taking).
+function expandGroupToSections(groupSet) {
+  const seen = new Set();
+  const result = [];
+  reviewRows.forEach((r) => {
+    if (!selectedCourses.has(r.course_code) || !groupSet.has(r.group_number)) return;
+    const key = `${r.course_code}|${r.group_number}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push({ course_code: r.course_code, group_number: r.group_number });
+  });
+  return result;
 }
 
 function buildToggleChips(containerId, values, selectedSet, isAvoid, labelFn, mutuallyExclusiveWith) {
@@ -472,13 +487,13 @@ async function generate() {
     classes: reviewRows.map(normalizeSession),
     selected_courses: [...selectedCourses],
     hard_constraints: {
-      blocked_sections: [...blockedSections].map((k) => { const [c, g] = k.split('|'); return { course_code: c, group_number: g }; }),
+      blocked_sections: expandGroupToSections(blockedGroups),
       blocked_days: [...blockedDays],
       blocked_time_ranges: [],
     },
     preferences: {
       preferred_instructors: [...preferredInstructors],
-      preferred_groups: [...preferredSections].map((k) => { const [c, g] = k.split('|'); return { course_code: c, group_number: g }; }),
+      preferred_groups: expandGroupToSections(preferredGroups),
       preferred_days: [],
       free_days: [...freeDays],
       avoid_early: document.getElementById('pref-avoid-early').checked,
