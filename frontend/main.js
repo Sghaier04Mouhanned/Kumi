@@ -418,31 +418,44 @@ function hideCourseLimitNote() {
   document.getElementById('course-limit-note').classList.remove('show');
 }
 
+// "G1" in a Freshman course and "G1" in a Sophomore course are different
+// physical groups of students that just happen to share a label -- group
+// numbers are only unique within a level. So the group a student picks has
+// to be scoped by level too, not just by its bare number.
+function groupLevelKey(row) {
+  return `${levelFromCode(row.course_code) || 'Unknown'}|${row.group_number}`;
+}
+
+function formatGroupLevelLabel(key) {
+  const [level, group] = key.split('|');
+  return `${group} · ${level}`;
+}
+
 function buildPreferenceChips() {
   const relevant = reviewRows.filter((r) => selectedCourses.has(r.course_code));
 
-  // A student's group is the same set of peers across all their courses, so
-  // blocking/preferring "G3" applies everywhere G3 shows up -- not chosen
-  // per course.
-  const groups = [...new Set(relevant.map((r) => r.group_number))].sort();
+  // A student's group is the same set of peers across all their courses
+  // within a level, so blocking/preferring "G3 · Freshman" applies
+  // everywhere that group shows up -- not chosen per course.
+  const groups = [...new Set(relevant.map(groupLevelKey))].sort();
   const instructors = [...new Set(relevant.map((r) => r.instructor_name).filter(Boolean))].sort();
 
-  buildToggleChips('chips-preferred-sections', groups, preferredGroups, false, null, blockedGroups);
-  buildToggleChips('chips-blocked-sections', groups, blockedGroups, true, null, preferredGroups);
+  buildToggleChips('chips-preferred-sections', groups, preferredGroups, false, formatGroupLevelLabel, blockedGroups);
+  buildToggleChips('chips-blocked-sections', groups, blockedGroups, true, formatGroupLevelLabel, preferredGroups);
   buildToggleChips('chips-preferred-instructors', instructors, preferredInstructors, false);
   buildToggleChips('chips-blocked-days', CORE_DAYS, blockedDays, true, null, freeDays);
   buildToggleChips('chips-free-days', CORE_DAYS, freeDays, false, null, blockedDays);
 }
 
-// Expands a set of selected group numbers into every {course_code,
+// Expands a set of selected "LEVEL|GROUP" keys into every {course_code,
 // group_number} pair the backend needs, scoped to the currently-selected
 // courses (a group selection only matters for courses the student is
-// actually taking).
+// actually taking, and only within the same level the group was picked in).
 function expandGroupToSections(groupSet) {
   const seen = new Set();
   const result = [];
   reviewRows.forEach((r) => {
-    if (!selectedCourses.has(r.course_code) || !groupSet.has(r.group_number)) return;
+    if (!selectedCourses.has(r.course_code) || !groupSet.has(groupLevelKey(r))) return;
     const key = `${r.course_code}|${r.group_number}`;
     if (seen.has(key)) return;
     seen.add(key);
