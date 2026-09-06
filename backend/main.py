@@ -30,6 +30,20 @@ app.add_middleware(
 )
 
 
+# Confirmed on real testing: the frontend has no build step or versioned
+# filenames, so a browser that already loaded index.html/main.js/style.css
+# once can keep serving that stale copy from its own cache after a fix
+# ships, even on a normal reload -- a shipped bug fix can look like it never
+# landed. Force revalidation on every request for anything that isn't the
+# API so a change is always picked up on the next reload.
+@app.middleware("http")
+async def no_cache_static(request, call_next):
+    response = await call_next(request)
+    if not request.url.path.startswith("/api"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
