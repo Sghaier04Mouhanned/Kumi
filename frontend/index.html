@@ -10,7 +10,7 @@
 <body>
 <div class="container">
 
-  <header>
+  <header data-no-print>
     <div class="header-inner">
       <div>
         <div class="logo">Kumi</div>
@@ -30,7 +30,7 @@
   <!-- STEP 0: Pick a university -- gates everything else. Each university
        has its own shared catalog, so this decides whether the student
        skips straight to picking courses or has to upload/extract first. -->
-  <div class="section" id="university-section">
+  <div class="section" id="university-section" data-no-print>
     <div class="section-title">Which university are you at?</div>
     <p class="info-text" style="margin-bottom:16px">
       If your university's timetable has already been published, you'll skip straight to picking courses.
@@ -52,14 +52,14 @@
   </div>
 
   <!-- Shown instead of the upload step when this university's shared catalog has been published -->
-  <div class="alert" id="catalog-banner">
+  <div class="alert" id="catalog-banner" data-no-print>
     <span class="alert-icon" id="catalog-banner-icon"></span>
     <span id="catalog-banner-text" style="flex:1"></span>
     <button class="btn-secondary alert-action" onclick="showUploadForMissingGroup()">My group isn't in here</button>
   </div>
 
   <!-- STEP 1: Upload photos -->
-  <div class="section" id="upload-section" style="display:none">
+  <div class="section" id="upload-section" style="display:none" data-no-print>
     <div class="section-title">Timetable Photos</div>
     <p class="info-text" style="margin-bottom:16px">
       Take a photo of your department/group timetable board (or a PDF export) and upload it here.
@@ -87,7 +87,7 @@
   </div>
 
   <!-- STEP 2: Review extracted data -->
-  <div class="section" id="review-section" style="display:none">
+  <div class="section" id="review-section" style="display:none" data-no-print>
     <div class="section-title">Review Extracted Data</div>
     <p class="info-text" style="margin-bottom:12px">
       Photo extraction can make mistakes — check the rows below before selecting courses.
@@ -120,7 +120,7 @@
   </div>
 
   <!-- STEP 3: Courses & Preferences -->
-  <div class="section" id="prefs-section" style="display:none">
+  <div class="section" id="prefs-section" style="display:none" data-no-print>
     <div class="section-title">Select Your Courses</div>
     <p class="info-text" style="margin-bottom:10px">Filter by level, then pick up to 7 courses.</p>
     <div class="chips" id="chips-level" style="margin-bottom:14px"></div>
@@ -179,10 +179,10 @@
 
   <!-- RESULT -->
   <div class="section" id="result-section">
-    <div class="section-title">Your Timetable</div>
+    <div class="section-title" data-no-print>Your Timetable</div>
     <div class="alt-tabs" id="alt-tabs" data-no-print></div>
-    <div class="summary-grid" id="summary-grid"></div>
-    <div class="score-breakdown" id="score-breakdown"></div>
+    <div class="summary-grid" id="summary-grid" data-no-print></div>
+    <div class="score-breakdown" id="score-breakdown" data-no-print></div>
     <div class="timetable-wrapper">
       <table class="timetable" id="timetable"></table>
     </div>
@@ -191,7 +191,7 @@
       <button class="btn-secondary" onclick="window.print()">Print / Save as PDF</button>
     </div>
     <button class="json-toggle" onclick="toggleJson()" data-no-print>{ } View Raw JSON</button>
-    <pre id="raw-json"></pre>
+    <pre id="raw-json" data-no-print></pre>
   </div>
 
 </div>
