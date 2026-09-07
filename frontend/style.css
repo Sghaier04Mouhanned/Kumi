@@ -362,6 +362,30 @@ textarea:focus { border-color: var(--text); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* =====================
+   Confirm modal -- replaces window.confirm() so "are you sure" prompts
+   match the rest of the UI instead of the browser's own dialog chrome.
+   ===================== */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(37, 35, 36, 0.55);
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 100;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 28px;
+  max-width: 420px;
+  width: 100%;
+}
+.modal-message { font-size: 0.9rem; line-height: 1.6; }
+
+/* =====================
    Result Section
    ===================== */
 #result-section { display: none; }

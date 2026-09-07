@@ -191,6 +191,19 @@
   </div>
 
 </div>
+
+<!-- Reusable confirm dialog -- replaces the browser's native confirm()
+     popup so "are you sure" prompts match the rest of the UI. -->
+<div class="modal-overlay" id="confirm-overlay">
+  <div class="modal">
+    <div class="modal-message" id="confirm-message"></div>
+    <div class="btn-row" style="margin-top:22px;justify-content:flex-end">
+      <button class="btn-secondary" id="confirm-cancel-btn">Cancel</button>
+      <button class="btn" id="confirm-ok-btn">OK</button>
+    </div>
+  </div>
+</div>
+
 <script src="main.js"></script>
 </body>
 </html>

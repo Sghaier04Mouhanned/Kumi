@@ -42,6 +42,41 @@ let currentSuggestions = [];  // AI reconciliation suggestions not yet applied
 let selectedLevel = null;     // null = show courses from every level
 
 // =====================
+// Styled confirm dialog -- replaces window.confirm() so "are you sure"
+// prompts match the rest of the UI instead of the browser's own dialog
+// chrome. Usage: `if (await showConfirm('...')) { ... }`.
+// =====================
+const confirmOverlay = document.getElementById('confirm-overlay');
+const confirmMessageEl = document.getElementById('confirm-message');
+let _confirmResolve = null;
+
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    _confirmResolve = resolve;
+    confirmMessageEl.textContent = message;
+    confirmOverlay.classList.add('show');
+  });
+}
+
+function _resolveConfirm(result) {
+  confirmOverlay.classList.remove('show');
+  if (_confirmResolve) {
+    const resolve = _confirmResolve;
+    _confirmResolve = null;
+    resolve(result);
+  }
+}
+
+document.getElementById('confirm-ok-btn').onclick = () => _resolveConfirm(true);
+document.getElementById('confirm-cancel-btn').onclick = () => _resolveConfirm(false);
+confirmOverlay.onclick = (e) => {
+  if (e.target === confirmOverlay) _resolveConfirm(false); // backdrop click = cancel
+};
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && confirmOverlay.classList.contains('show')) _resolveConfirm(false);
+});
+
+// =====================
 // Step 1: Upload
 // =====================
 const uploadZone = document.getElementById('upload-zone');
@@ -237,7 +272,7 @@ function findUniversityMatch(typedName) {
   return best;
 }
 
-function chooseUniversity() {
+async function chooseUniversity() {
   const input = document.getElementById('university-input');
   const name = input.value.trim();
   if (!name) return;
@@ -249,7 +284,7 @@ function chooseUniversity() {
   // since guessing wrong here means showing them the wrong school's data.
   const match = findUniversityMatch(name);
   if (match && match.university_name.toLowerCase() !== name.toLowerCase()) {
-    const useExisting = confirm(
+    const useExisting = await showConfirm(
       `Did you mean "${match.university_name}"? Click OK to use their already-published timetable, ` +
       `or Cancel to set up "${name}" as a separate, new university.`
     );
@@ -836,14 +871,14 @@ function esc(str) {
 // =====================
 // Start over
 // =====================
-function startOver() {
+async function startOver() {
   // A full reload is the simplest way to guarantee every piece of session
   // state (uploaded files, extracted/edited rows, selections, results) is
   // truly gone -- and it re-checks the shared catalog cleanly too, rather
   // than trying to hand-reset a dozen variables and risk missing one. The
   // chosen university is deliberately kept (it's identity, not session
   // state) via UNIVERSITY_STORAGE_KEY -- use "Switch university" for that.
-  if (confirm('Clear everything from this session (uploads, extracted data, selections) and start over?')) {
+  if (await showConfirm('Clear everything from this session (uploads, extracted data, selections) and start over?')) {
     location.reload();
   }
 }
