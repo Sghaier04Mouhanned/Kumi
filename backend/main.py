@@ -17,6 +17,7 @@ from backend.models import (
     PublishCatalogRequest,
     ReconcileRequest,
     SharedCatalog,
+    UniversitySummary,
 )
 from backend.solver import generate_timetables
 
@@ -84,12 +85,21 @@ async def reconcile_endpoint(request: ReconcileRequest) -> ExtractResponse:
     return ExtractResponse(classes=classes, warnings=warnings, suggestions=suggestions, reconcile_note=reconcile_note)
 
 
+@app.get("/api/universities", response_model=list[UniversitySummary])
+def list_universities() -> list[UniversitySummary]:
+    """Every university with a published catalog, so a student can pick
+    theirs from a list instead of typing it blind. A university that isn't
+    listed just hasn't had anyone publish for it yet -- not an error."""
+    return catalog_store.list_universities()
+
+
 @app.get("/api/catalog", response_model=SharedCatalog)
-def get_catalog() -> SharedCatalog:
-    """The shared timetable everyone loads by default. Empty classes means
-    no semester has been published yet -- the frontend falls back to the
-    upload flow in that case, not an error state."""
-    return catalog_store.load_catalog()
+def get_catalog(university_id: str) -> SharedCatalog:
+    """The shared timetable that university's students load by default.
+    Empty classes means no semester has been published yet for this
+    university -- the frontend falls back to the upload flow in that case,
+    not an error state."""
+    return catalog_store.load_catalog(university_id)
 
 
 @app.post("/api/catalog", response_model=SharedCatalog)
@@ -100,9 +110,14 @@ def publish_catalog(request: PublishCatalogRequest) -> SharedCatalog:
         raise HTTPException(status_code=403, detail="Invalid admin token.")
     if not request.classes:
         raise HTTPException(status_code=400, detail="No classes to publish.")
+    if not request.university_name.strip():
+        raise HTTPException(status_code=400, detail="University name is required.")
 
+    university_id = request.university_id or catalog_store.slugify_university(request.university_name)
     updated_at = datetime.now(timezone.utc).isoformat()
-    return catalog_store.save_catalog(request.classes, request.semester_label, updated_at)
+    return catalog_store.save_catalog(
+        university_id, request.university_name, request.classes, request.semester_label, updated_at
+    )
 
 
 # Matches the frontend's own cap (kept here too since a request can bypass

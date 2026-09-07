@@ -3,23 +3,29 @@
 Kumi generates a personalized weekly timetable from your university's
 timetable data. Pick your required courses, set hard constraints and
 soft preferences, and get back the best valid schedule — computed by a
-deterministic backtracking search, not an LLM. Currently tuned for
-Tunis Business School (TBS), built to generalize to other schools later.
+deterministic backtracking search, not an LLM. Built to generalize to
+any university, not just one: each university gets its own shared
+catalog.
 
-Two ways the course data gets in:
+The first thing every visitor does is pick their university. From there,
+two ways the course data gets in:
 
-- **Shared catalog (the default once one is published)** — one person
-  extracts and reviews the semester's timetable photos once, publishes
-  it, and everyone else just picks courses immediately. No upload step
+- **Shared catalog (the default once one is published for that
+  university)** — one person extracts and reviews their university's
+  semester timetable photos once, publishes it, and everyone else at
+  that same university just picks courses immediately. No upload step
   for regular students.
 - **Per-session upload** — anyone can still upload their own photos,
-  either because no shared catalog has been published yet, or because
-  their specific group isn't in it. This is the only path today, since
-  the current semester's timetables haven't been published yet.
+  either because no shared catalog has been published yet for their
+  university, or because their specific group isn't in it.
 
 ## How it works
 
 ```
+Pick a university (known ones list a published catalog; typing a new
+name starts that university's first-ever upload)
+        |
+        v
 Photo(s) of timetable  --[Gemini]-->  raw structured class data
         |
         v
@@ -34,8 +40,9 @@ flags uncertain ones as suggestions, everything undoable
 Review & correct extracted data in the browser (extraction isn't perfect)
         |
         v
-(optional) Publish as the shared catalog, admin-token gated, so
-everyone after this point skips straight to the next step
+(optional) Publish as that university's shared catalog, admin-token
+gated, so everyone at that university after this point skips straight
+to the next step
         |
         v
 Select required courses + hard constraints + soft preferences
@@ -50,27 +57,28 @@ Best timetable(s), rendered as a weekly calendar
 Preferences and any per-session uploaded data live only in the
 browser — there's no database, and no accounts. Two things persist on
 the server as plain JSON files, not a database: the published shared
-catalog (one small, infrequently-written document) and a local disk
-cache keyed by each photo's content hash, so the same photo is never
-re-sent to Gemini twice (see below).
+catalogs (one small, infrequently-written document per university) and
+a local disk cache keyed by each photo's content hash, so the same
+photo is never re-sent to Gemini twice (see below).
 
 ## Project layout
 
 ```
 backend/
-  main.py          # FastAPI app: /api/extract, /api/reconcile, /api/catalog, /api/generate, serves frontend/
+  main.py          # FastAPI app: /api/extract, /api/reconcile, /api/universities, /api/catalog, /api/generate, serves frontend/
   extraction.py    # Orchestrates: vision.py -> normalize -> merge -> dedupe -> reconcile -> validate -> cache
   vision.py        # Photo -> raw structured data (Gemini)
   reconcile.py     # AI cleanup of duplicate/misread course & instructor labels (Groq)
-  catalog_store.py # Reads/writes the published shared catalog (plain JSON file)
+  catalog_store.py # Reads/writes each university's published shared catalog (plain JSON files)
   solver.py        # Backtracking search + weighted soft-preference scoring
   models.py        # Pydantic request/response schemas
   config.py        # Settings (API keys, CORS, models, admin token)
 data/
-  tbs_catalog.json       # TBS's real course catalog, used to ground reconciliation
-  shared_timetable.json  # Gitignored. The published shared catalog, if any --
-                          # real semester data, not source. Missing/empty is
-                          # the normal "nothing published yet" state.
+  tbs_catalog.json  # TBS's real course catalog, used to ground reconciliation
+  catalogs/          # Gitignored. One JSON file per university (slugified name),
+                      # its published shared catalog if any -- real semester data,
+                      # not source. A university with no file yet just means
+                      # nobody's published for it -- the normal starting state.
 frontend/
   index.html, main.js, style.css   # Static UI, no build step
 normalize.py      # Field normalization (day names, time format, course codes)
@@ -110,22 +118,30 @@ before a student ever picks a course:
 
 ## Shared catalog
 
-`GET /api/catalog` is what the frontend checks on load. Empty
-(`{"classes": [], ...}`) means nothing has been published — the app
-falls back to the upload flow exactly as if this feature didn't exist.
-Once something is published, regular students skip straight to course
-selection, with a banner showing what's loaded and a "My group isn't
-in here" link that reveals the upload section again (newly uploaded
-photos are *added* to the loaded catalog for that session, not
-published automatically).
+Every visitor picks a university first (`GET /api/universities` lists
+every university with a published catalog, so this is a pick list, not
+blind typing). That choice is remembered in `localStorage`, so it's a
+one-time step per browser — a "Switch university" link in the header
+clears it and re-asks.
+
+`GET /api/catalog?university_id=...` is what the frontend then checks.
+Empty (`{"classes": [], ...}`) means nothing's been published *for that
+university* — the app falls back to the upload flow exactly as if this
+feature didn't exist. Once something is published for a university,
+its students skip straight to course selection, with a banner showing
+what's loaded and a "My group isn't in here" link that reveals the
+upload section again (newly uploaded photos are *added* to the loaded
+catalog for that session, not published automatically).
 
 To publish: go through the normal upload → review → correct flow, then
 click **Publish to Shared Catalog** in the review step. It'll ask for
 the admin token (`ADMIN_TOKEN` below) and an optional label (e.g.
-"Fall 2026-27"). `POST /api/catalog` is rejected outright if
+"Fall 2026-27") — the university is whichever one was picked in step 0,
+no need to re-enter it. `POST /api/catalog` is rejected outright if
 `ADMIN_TOKEN` isn't set on the server — publishing fails closed, not
 open, so a deployment with no token configured simply can't be
-published to by anyone.
+published to by anyone, for any university. One token gates every
+university's publishing today; there's no per-university admin role.
 
 ## Run locally
 

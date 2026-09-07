@@ -130,8 +130,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Published shared timetable -- real semester data, not source
-data/shared_timetable.json
+# Published shared timetable catalogs (one per university) -- real semester
+# data, not source
+data/catalogs/
 
 # Real student/department timetable photos used for local testing --
 # real names and schedule data, kept local-only, never pushed.

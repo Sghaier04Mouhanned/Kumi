@@ -18,19 +18,40 @@
       </div>
       <div style="text-align:right">
         <div class="badge">Free &middot; Deterministic &middot; No account needed</div>
+        <div id="university-indicator" style="display:none;margin-top:8px;font-size:0.78rem;color:var(--muted)">
+          <span id="university-indicator-name"></span> &middot;
+          <button class="json-toggle" onclick="switchUniversity()">Switch university</button>
+        </div>
         <div style="margin-top:8px"><button class="json-toggle" onclick="startOver()">Start Over</button></div>
       </div>
     </div>
   </header>
 
-  <div class="steps">
+  <!-- STEP 0: Pick a university -- gates everything else. Each university
+       has its own shared catalog, so this decides whether the student
+       skips straight to picking courses or has to upload/extract first. -->
+  <div class="section" id="university-section">
+    <div class="section-title">Which university are you at?</div>
+    <p class="info-text" style="margin-bottom:16px">
+      If your university's timetable has already been published, you'll skip straight to picking courses.
+      Otherwise you'll upload timetable photos once, and you (or a classmate) can publish them for everyone
+      at your school to use next time.
+    </p>
+    <div class="chips" id="university-list"></div>
+    <div class="btn-row" style="margin-top:16px">
+      <input type="text" id="university-input" placeholder="Type your university's name…" style="flex:1;min-width:220px"/>
+      <button class="btn" onclick="chooseUniversity()">Continue</button>
+    </div>
+  </div>
+
+  <div class="steps" id="steps-bar" style="display:none">
     <div class="step active" id="step1"><span class="step-num">01</span>Upload Photos</div>
     <div class="step" id="step2"><span class="step-num">02</span>Review Data</div>
     <div class="step" id="step3"><span class="step-num">03</span>Preferences</div>
     <div class="step" id="step4"><span class="step-num">04</span>Result</div>
   </div>
 
-  <!-- Shown instead of the upload step when a shared catalog has been published -->
+  <!-- Shown instead of the upload step when this university's shared catalog has been published -->
   <div class="alert" id="catalog-banner">
     <span class="alert-icon" id="catalog-banner-icon"></span>
     <span id="catalog-banner-text" style="flex:1"></span>
@@ -38,7 +59,7 @@
   </div>
 
   <!-- STEP 1: Upload photos -->
-  <div class="section" id="upload-section">
+  <div class="section" id="upload-section" style="display:none">
     <div class="section-title">Timetable Photos</div>
     <p class="info-text" style="margin-bottom:16px">
       Take a photo of your department/group timetable board (or a PDF export) and upload it here.

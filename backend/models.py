@@ -43,15 +43,27 @@ class ReconcileRequest(BaseModel):
 
 
 class SharedCatalog(BaseModel):
+    university_id: str | None = None
+    university_name: str | None = None
     classes: list[ClassSession] = []
     updated_at: str | None = None
     semester_label: str | None = None
 
 
 class PublishCatalogRequest(BaseModel):
+    university_id: str | None = None  # derived from university_name (slugified) if not given
+    university_name: str
     classes: list[ClassSession]
     semester_label: str | None = None
     token: str
+
+
+class UniversitySummary(BaseModel):
+    university_id: str
+    university_name: str
+    updated_at: str | None = None
+    semester_label: str | None = None
+    group_count: int = 0
 
 
 class GroupRef(BaseModel):

@@ -26,6 +26,7 @@ const ICON_INFO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 // =====================
 // State
 // =====================
+let currentUniversity = null; // {id, name} -- picked in Step 0, gates everything after it
 let uploadedFiles = [];      // [{file, groupLabel}]
 let reviewRows = [];         // [{id, course_name, course_code, course_type, instructor_name, day, time_start, time_end, group_number}]
 let selectedCourses = new Set();
@@ -133,14 +134,97 @@ async function extractPhotos() {
 }
 
 // =====================
-// Shared catalog -- lets regular students skip uploading entirely
+// Step 0: University -- each university has its own shared catalog, so this
+// decides whose catalog (if any) to check before anything else runs.
+// =====================
+const UNIVERSITY_STORAGE_KEY = 'kumi.university';
+
+async function initUniversityStep() {
+  let universities = [];
+  try {
+    const res = await fetch('/api/universities');
+    if (res.ok) universities = await res.json();
+  } catch (err) {
+    console.error('Could not load university list:', err);
+  }
+
+  const saved = readSavedUniversity();
+  if (saved) {
+    // Returning visit -- skip the picker, but only trust a saved id that a
+    // published catalog actually recognizes; otherwise fall through to the
+    // list so a stale/guessed id from a first-time upload doesn't stick.
+    const known = universities.find((u) => u.university_id === saved.id);
+    selectUniversity(saved.id, known ? known.university_name : saved.name, { skipSave: true });
+    return;
+  }
+
+  renderUniversityList(universities);
+}
+
+function readSavedUniversity() {
+  try {
+    const raw = localStorage.getItem(UNIVERSITY_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null; // private browsing / blocked storage -- just re-ask each visit
+  }
+}
+
+function renderUniversityList(universities) {
+  const container = document.getElementById('university-list');
+  container.innerHTML = '';
+  universities.forEach((u) => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = `${u.university_name} — ${u.group_count} group${u.group_count === 1 ? '' : 's'}`;
+    chip.onclick = () => selectUniversity(u.university_id, u.university_name);
+    container.appendChild(chip);
+  });
+}
+
+function chooseUniversity() {
+  const input = document.getElementById('university-input');
+  const name = input.value.trim();
+  if (!name) return;
+  // This id is only a client-side guess used to check for an existing
+  // catalog -- if this university ends up publishing one, the server
+  // settles on the real id (same slugify rule) at that point.
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'university';
+  selectUniversity(id, name);
+}
+
+function selectUniversity(id, name, opts) {
+  currentUniversity = { id, name };
+  if (!opts || !opts.skipSave) {
+    try {
+      localStorage.setItem(UNIVERSITY_STORAGE_KEY, JSON.stringify(currentUniversity));
+    } catch (err) {
+      // Not fatal -- just won't be remembered next visit.
+    }
+  }
+  document.getElementById('university-section').style.display = 'none';
+  document.getElementById('steps-bar').style.display = 'flex';
+  document.getElementById('upload-section').style.display = 'block';
+  document.getElementById('university-indicator-name').textContent = name;
+  document.getElementById('university-indicator').style.display = 'block';
+  loadSharedCatalog();
+}
+
+function switchUniversity() {
+  try { localStorage.removeItem(UNIVERSITY_STORAGE_KEY); } catch (err) { /* ignore */ }
+  location.reload();
+}
+
+// =====================
+// Shared catalog -- lets a university's students skip uploading entirely
+// once someone has published one for their school
 // =====================
 async function loadSharedCatalog() {
   try {
-    const res = await fetch('/api/catalog');
+    const res = await fetch(`/api/catalog?university_id=${encodeURIComponent(currentUniversity.id)}`);
     if (!res.ok) return;
     const data = await res.json();
-    if (!data.classes || !data.classes.length) return; // nothing published yet -- normal upload flow
+    if (!data.classes || !data.classes.length) return; // nothing published yet for this university -- normal upload flow
 
     reviewRows = data.classes.map((c) => ({ id: rowIdCounter++, ...c }));
 
@@ -150,7 +234,7 @@ async function loadSharedCatalog() {
     banner.classList.add('show');
     document.getElementById('catalog-banner-icon').innerHTML = ICON_INFO;
     document.getElementById('catalog-banner-text').textContent =
-      `Using ${data.semester_label || 'the published'} timetable (${groups.size} group${groups.size === 1 ? '' : 's'}) — last updated ${updated}.`;
+      `Using ${currentUniversity.name}'s ${data.semester_label || 'published'} timetable (${groups.size} group${groups.size === 1 ? '' : 's'}) — last updated ${updated}.`;
 
     document.getElementById('upload-section').style.display = 'none';
     buildCoursePicker();
@@ -181,11 +265,17 @@ async function publishCatalog() {
     const res = await fetch('/api/catalog', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ classes: reviewRows.map(normalizeSession), semester_label, token }),
+      body: JSON.stringify({
+        university_id: currentUniversity.id,
+        university_name: currentUniversity.name,
+        classes: reviewRows.map(normalizeSession),
+        semester_label,
+        token,
+      }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Publish failed.');
-    alert(`Published as the shared catalog (${data.classes.length} sessions). Students loading the app now will see this instead of the upload flow.`);
+    alert(`Published as ${currentUniversity.name}'s shared catalog (${data.classes.length} sessions). Other students at your school loading the app now will see this instead of the upload flow.`);
   } catch (err) {
     alert('Publish failed: ' + err.message);
   } finally {
@@ -677,7 +767,9 @@ function startOver() {
   // A full reload is the simplest way to guarantee every piece of session
   // state (uploaded files, extracted/edited rows, selections, results) is
   // truly gone -- and it re-checks the shared catalog cleanly too, rather
-  // than trying to hand-reset a dozen variables and risk missing one.
+  // than trying to hand-reset a dozen variables and risk missing one. The
+  // chosen university is deliberately kept (it's identity, not session
+  // state) via UNIVERSITY_STORAGE_KEY -- use "Switch university" for that.
   if (confirm('Clear everything from this session (uploads, extracted data, selections) and start over?')) {
     location.reload();
   }
@@ -686,4 +778,4 @@ function startOver() {
 // =====================
 // Init
 // =====================
-loadSharedCatalog();
+initUniversityStep();
