@@ -88,16 +88,28 @@ async def extract_photo(content: bytes, mime_type: str) -> tuple[str | None, lis
         },
     }
 
+    # The key goes in a header, not a "?key=..." query param -- confirmed on
+    # a real deploy: httpx's own exception message on a failed request
+    # includes the full request URL, and that message was flowing straight
+    # into the API's error response. A query-param key would leak into that
+    # response (and into any request logging) the moment a call ever fails.
+    headers = {"x-goog-api-key": settings.gemini_api_key}
+
     async with httpx.AsyncClient(timeout=60.0) as client:
         for attempt in range(MAX_RETRIES + 1):
-            resp = await client.post(url, params={"key": settings.gemini_api_key}, json=payload)
+            resp = await client.post(url, headers=headers, json=payload)
             if resp.status_code in RETRYABLE_STATUS_CODES and attempt < MAX_RETRIES:
                 retry_after = resp.headers.get("retry-after")
                 wait = float(retry_after) if retry_after else BASE_BACKOFF_SECONDS * (2 ** attempt)
                 wait += random.uniform(0, 1.5)  # jitter so concurrent photos don't retry in lockstep
                 await asyncio.sleep(min(wait, 30.0))
                 continue
-            resp.raise_for_status()
+            if resp.is_error:
+                # Sanitized on purpose -- never let httpx's own exception
+                # message (which includes the full request URL) reach the
+                # client, as a second line of defense beyond moving the key
+                # out of the URL above.
+                raise RuntimeError(f"Gemini request failed with status {resp.status_code}")
             data = resp.json()
             break
 
