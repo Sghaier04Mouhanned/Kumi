@@ -6,6 +6,13 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      # Pinned because Render's default (whatever the newest available is)
+      # has no prebuilt pydantic-core wheel yet -- pip falls back to
+      # compiling it from source via Rust/maturin, which fails outright in
+      # Render's build sandbox (read-only Cargo cache). 3.12 is what this
+      # project has actually been developed and tested against.
+      - key: PYTHON_VERSION
+        value: 3.12.5
       - key: GEMINI_API_KEY
         sync: false
       - key: GROQ_API_KEY
