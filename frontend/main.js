@@ -790,6 +790,10 @@ const CAL_DEFAULT_START_MIN = 8 * 60;
 const CAL_DEFAULT_END_MIN = 18 * 60;
 const CAL_PX_PER_MIN = 1.4;
 const CAL_MIN_CARD_HEIGHT = 32; // a floor so a very short class stays readable, not a sliver
+// Real class blocks here run in 90-minute units (a 1.5h tutorial, a 3h
+// lecture as two of them back to back), so gridlines every 90 minutes land
+// on actual start/end times far more often than plain hourly lines did.
+const CAL_TICK_MIN = 90;
 
 function _timeToMinutes(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
@@ -815,17 +819,18 @@ function renderCalendar(sessions) {
   let gridStart = CAL_DEFAULT_START_MIN;
   let gridEnd = CAL_DEFAULT_END_MIN;
   sessions.forEach((s) => {
-    gridStart = Math.min(gridStart, Math.floor(_timeToMinutes(s.time_start) / 60) * 60);
-    gridEnd = Math.max(gridEnd, Math.ceil(_timeToMinutes(s.time_end) / 60) * 60);
+    gridStart = Math.min(gridStart, Math.floor(_timeToMinutes(s.time_start) / CAL_TICK_MIN) * CAL_TICK_MIN);
+    gridEnd = Math.max(gridEnd, Math.ceil(_timeToMinutes(s.time_end) / CAL_TICK_MIN) * CAL_TICK_MIN);
   });
 
-  const hourHeight = 60 * CAL_PX_PER_MIN;
+  const tickHeight = CAL_TICK_MIN * CAL_PX_PER_MIN;
   const totalHeight = (gridEnd - gridStart) * CAL_PX_PER_MIN;
 
   let hourMarks = '';
-  for (let m = gridStart; m <= gridEnd; m += 60) {
+  for (let m = gridStart; m <= gridEnd; m += CAL_TICK_MIN) {
     const h = Math.floor(m / 60);
-    hourMarks += `<div class="cal-hour-mark" style="top:${(m - gridStart) * CAL_PX_PER_MIN}px">${String(h).padStart(2, '0')}:00</div>`;
+    const mm = m % 60;
+    hourMarks += `<div class="cal-hour-mark" style="top:${(m - gridStart) * CAL_PX_PER_MIN}px">${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}</div>`;
   }
 
   let dayColumns = '';
@@ -860,7 +865,7 @@ function renderCalendar(sessions) {
       <div class="cal-gutter-header"></div>
       ${dayHeaders}
     </div>
-    <div class="cal-body" style="height:${totalHeight}px;--hour-h:${hourHeight}px">
+    <div class="cal-body" style="height:${totalHeight}px;--tick-h:${tickHeight}px">
       <div class="cal-gutter">${hourMarks}</div>
       ${dayColumns}
     </div>`;

@@ -469,7 +469,7 @@ textarea:focus { border-color: var(--text); }
      simplest way to give every day column matching gridlines without
      drawing them into each column separately. */
   background-image: repeating-linear-gradient(
-    to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent var(--hour-h)
+    to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent var(--tick-h)
   );
 }
 
