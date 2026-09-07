@@ -48,6 +48,7 @@ header {
   margin-bottom: 32px;
 }
 .header-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.header-actions { text-align: right; }
 .logo { font-weight: 700; font-size: 1.7rem; letter-spacing: -0.4px; line-height: 1; }
 .logo-sub { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
 .badge { font-size: 0.75rem; color: var(--muted); }
@@ -236,6 +237,17 @@ textarea:focus { border-color: var(--text); }
   white-space: nowrap;
 }
 .edit-table td { border: 1px solid var(--border); padding: 2px; }
+/* Same reasoning as the timetable's time column: this table has nine
+   columns and needs horizontal scroll on a phone no matter what, so pin
+   the one column (course name) that identifies which row you're editing
+   as the rest scrolls underneath it. */
+.edit-table th:first-child,
+.edit-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg);
+}
 .edit-table input,
 .edit-table select {
   width: 100%;
@@ -445,14 +457,22 @@ textarea:focus { border-color: var(--text); }
   vertical-align: top;
   min-width: 130px;
 }
-.timetable .time-cell {
+/* The time column only ever holds a short "08:30"-style label, but without
+   its own min-width it inherited the same 130px as a day column -- wasted
+   space that mattered a lot on a narrow screen. Pinning it via position:
+   sticky also means a student scrolling through the week horizontally
+   never loses track of which time row they're looking at. */
+.timetable td.time-cell {
   background: var(--bg);
   color: var(--muted2);
   text-align: left;
   font-size: 0.68rem;
   padding: 12px 10px;
+  min-width: 56px;
+  position: sticky;
+  left: 0;
+  z-index: 1;
   white-space: nowrap;
-  min-width: 90px;
 }
 
 /* Class cards inside grid */
@@ -518,6 +538,7 @@ pre.show { display: block; }
   .pref-grid     { grid-template-columns: 1fr; }
   .summary-card  { flex: 1 1 50%; }
   .header-inner  { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .header-actions { text-align: left; width: 100%; }
   .steps         { flex-direction: column; }
   .step          { border-right: none; border-bottom: 1px solid var(--border); }
   .step:last-child { border-bottom: none; }
