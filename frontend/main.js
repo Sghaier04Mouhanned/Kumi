@@ -862,6 +862,126 @@ function toggleJson() {
   document.getElementById('raw-json').classList.toggle('show');
 }
 
+// =====================
+// Calendar export (.ics) -- classes repeat weekly, but the extracted data
+// only ever has a day-of-week + time, never real calendar dates. Asking for
+// the semester's start/end once lets every session become a correctly
+// dated, weekly-recurring calendar event a phone's calendar app understands
+// natively, instead of a one-off event on the wrong date.
+// =====================
+const ICS_BYDAY = { MON: 'MO', TUE: 'TU', WED: 'WE', THU: 'TH', FRI: 'FR', SAT: 'SA', SUN: 'SU' };
+const DAY_OFFSET = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 };
+
+function _pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function _toDateInputValue(date) {
+  return `${date.getFullYear()}-${_pad2(date.getMonth() + 1)}-${_pad2(date.getDate())}`;
+}
+
+function _defaultSemesterStart() {
+  const d = new Date();
+  const daysUntilMonday = (1 - d.getDay() + 7) % 7; // 0 if today already is Monday
+  d.setDate(d.getDate() + daysUntilMonday);
+  return d;
+}
+
+function openCalendarExport() {
+  const startInput = document.getElementById('semester-start-input');
+  const endInput = document.getElementById('semester-end-input');
+  if (!startInput.value) {
+    const start = _defaultSemesterStart();
+    const end = new Date(start);
+    end.setDate(end.getDate() + 15 * 7); // a common semester length -- just a starting point to adjust
+    startInput.value = _toDateInputValue(start);
+    endInput.value = _toDateInputValue(end);
+  }
+  document.getElementById('calendar-export-overlay').classList.add('show');
+}
+
+function closeCalendarExport() {
+  document.getElementById('calendar-export-overlay').classList.remove('show');
+}
+
+function _icsDateTime(date, timeStr) {
+  const [h, m] = timeStr.split(':').map(Number);
+  return `${date.getFullYear()}${_pad2(date.getMonth() + 1)}${_pad2(date.getDate())}T${_pad2(h)}${_pad2(m)}00`;
+}
+
+function _icsDateOnly(date) {
+  return `${date.getFullYear()}${_pad2(date.getMonth() + 1)}${_pad2(date.getDate())}`;
+}
+
+function _icsUtcNow() {
+  const d = new Date();
+  return `${d.getUTCFullYear()}${_pad2(d.getUTCMonth() + 1)}${_pad2(d.getUTCDate())}T` +
+    `${_pad2(d.getUTCHours())}${_pad2(d.getUTCMinutes())}${_pad2(d.getUTCSeconds())}Z`;
+}
+
+function _icsEscape(text) {
+  return String(text || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+}
+
+function buildIcs(sessions, semesterStart, semesterEnd) {
+  const until = new Date(semesterEnd);
+  until.setDate(until.getDate() + 1); // include events ON the end date, not just before it
+  const untilStr = `${_icsDateOnly(until)}T235959`;
+  const dtstamp = _icsUtcNow();
+
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Kumi//Timetable//EN', 'CALSCALE:GREGORIAN'];
+
+  sessions.forEach((s, i) => {
+    const offset = DAY_OFFSET[s.day];
+    if (offset === undefined) return; // an unrecognized day shouldn't break the rest of the export
+
+    const firstDate = new Date(semesterStart);
+    firstDate.setDate(firstDate.getDate() + offset);
+
+    const summary = s.course_type ? `${s.course_name || s.course_code} — ${s.course_type}` : (s.course_name || s.course_code);
+    const descriptionParts = [];
+    if (s.instructor_name) descriptionParts.push(`Instructor: ${s.instructor_name}`);
+    if (s.group_number) descriptionParts.push(`Group: ${s.group_number}`);
+
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:kumi-${i}-${s.course_code}-${s.group_number}-${s.day}-${s.time_start}@kumi.app`.replace(/\s+/g, ''));
+    lines.push(`DTSTAMP:${dtstamp}`);
+    lines.push(`DTSTART:${_icsDateTime(firstDate, s.time_start)}`);
+    lines.push(`DTEND:${_icsDateTime(firstDate, s.time_end)}`);
+    lines.push(`RRULE:FREQ=WEEKLY;BYDAY=${ICS_BYDAY[s.day]};UNTIL=${untilStr}`);
+    lines.push(`SUMMARY:${_icsEscape(summary)}`);
+    if (s.class_number) lines.push(`LOCATION:${_icsEscape(s.class_number)}`);
+    if (descriptionParts.length) lines.push(`DESCRIPTION:${_icsEscape(descriptionParts.join('\n'))}`);
+    lines.push('END:VEVENT');
+  });
+
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
+function downloadCalendarFile() {
+  const startVal = document.getElementById('semester-start-input').value;
+  const endVal = document.getElementById('semester-end-input').value;
+  if (!startVal || !endVal) { alert('Pick both a start and end date.'); return; }
+
+  const start = new Date(`${startVal}T00:00:00`);
+  const end = new Date(`${endVal}T00:00:00`);
+  if (end < start) { alert('The end date is before the start date.'); return; }
+
+  const sessions = lastResults[activeResultIndex].sessions;
+  const ics = buildIcs(sessions, start, end);
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'kumi-timetable.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  closeCalendarExport();
+}
+
 function esc(str) {
   const div = document.createElement('div');
   div.textContent = str == null ? '' : String(str);

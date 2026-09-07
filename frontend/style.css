@@ -546,3 +546,19 @@ pre.show { display: block; }
   header { padding: 24px 0 20px; }
   .logo { font-size: 1.5rem; }
 }
+
+/* =====================
+   Print -- "Print / Save as PDF" shows only the calendar itself, none of
+   the interactive chrome around it.
+   ===================== */
+@media print {
+  [data-no-print] { display: none !important; }
+  body { background: #fff; }
+  .container { max-width: 100%; padding: 0; }
+  .section { border: none; padding: 0; }
+  /* A printed page doesn't scroll, so the horizontal-scroll affordance and
+     the pinned time column (both mobile/viewport conveniences) would only
+     get in the way here -- let the table lay out at its natural width. */
+  .timetable-wrapper { overflow-x: visible; }
+  .timetable td.time-cell { position: static; }
+}

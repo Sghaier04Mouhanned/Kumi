@@ -16,7 +16,7 @@
         <div class="logo">Kumi</div>
         <div class="logo-sub">University Timetable Optimizer</div>
       </div>
-      <div class="header-actions">
+      <div class="header-actions" data-no-print>
         <div class="badge">Free &middot; Deterministic &middot; No account needed</div>
         <div id="university-indicator" style="display:none;margin-top:8px;font-size:0.78rem;color:var(--muted)">
           <span id="university-indicator-name"></span> &middot;
@@ -44,7 +44,7 @@
     </div>
   </div>
 
-  <div class="steps" id="steps-bar" style="display:none">
+  <div class="steps" id="steps-bar" style="display:none" data-no-print>
     <div class="step active" id="step1"><span class="step-num">01</span>Upload Photos</div>
     <div class="step" id="step2"><span class="step-num">02</span>Review Data</div>
     <div class="step" id="step3"><span class="step-num">03</span>Preferences</div>
@@ -180,13 +180,17 @@
   <!-- RESULT -->
   <div class="section" id="result-section">
     <div class="section-title">Your Timetable</div>
-    <div class="alt-tabs" id="alt-tabs"></div>
+    <div class="alt-tabs" id="alt-tabs" data-no-print></div>
     <div class="summary-grid" id="summary-grid"></div>
     <div class="score-breakdown" id="score-breakdown"></div>
     <div class="timetable-wrapper">
       <table class="timetable" id="timetable"></table>
     </div>
-    <button class="json-toggle" onclick="toggleJson()">{ } View Raw JSON</button>
+    <div class="btn-row" style="margin-top:16px" data-no-print>
+      <button class="btn-secondary" onclick="openCalendarExport()">Download Calendar (.ics)</button>
+      <button class="btn-secondary" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+    <button class="json-toggle" onclick="toggleJson()" data-no-print>{ } View Raw JSON</button>
     <pre id="raw-json"></pre>
   </div>
 
@@ -200,6 +204,30 @@
     <div class="btn-row" style="margin-top:22px;justify-content:flex-end">
       <button class="btn-secondary" id="confirm-cancel-btn">Cancel</button>
       <button class="btn" id="confirm-ok-btn">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Calendar export -- asks for the semester's date range so the .ics file's
+     recurring weekly events land on real calendar dates, not just weekdays. -->
+<div class="modal-overlay" id="calendar-export-overlay">
+  <div class="modal">
+    <div class="modal-message">
+      Classes repeat weekly on their calendar. When does your semester run?
+    </div>
+    <div class="btn-row" style="margin-top:16px;gap:16px">
+      <label style="flex:1;font-size:0.78rem;color:var(--muted)">
+        Starts (first Monday of classes)
+        <input type="date" id="semester-start-input" style="width:100%;margin-top:6px"/>
+      </label>
+      <label style="flex:1;font-size:0.78rem;color:var(--muted)">
+        Ends (last day of classes)
+        <input type="date" id="semester-end-input" style="width:100%;margin-top:6px"/>
+      </label>
+    </div>
+    <div class="btn-row" style="margin-top:22px;justify-content:flex-end">
+      <button class="btn-secondary" onclick="closeCalendarExport()">Cancel</button>
+      <button class="btn" onclick="downloadCalendarFile()">Download .ics</button>
     </div>
   </div>
 </div>
