@@ -435,14 +435,21 @@ textarea:focus { border-color: var(--text); }
 .summary-label { font-size: 0.72rem; color: var(--muted); margin-top: 6px; }
 
 /* =====================
-   Timetable Grid
+   Timetable Grid -- event cards positioned on a shared time scale, not a
+   plain table with one fixed-height row per unique start time. A table
+   row made a 3-hour lecture look exactly as tall as a 30-minute one; this
+   makes duration visually obvious, the way any real calendar renders a
+   week.
    ===================== */
-.timetable-wrapper { overflow-x: auto; }
-.timetable { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.timetable-wrapper { overflow-x: auto; font-size: 0.75rem; }
 
-.timetable th {
+.cal-header-row { display: flex; }
+.cal-gutter-header { flex: 0 0 56px; }
+.cal-day-header {
+  flex: 1 0 130px;
   background: var(--bg);
   border: 1px solid var(--border);
+  border-left: none;
   padding: 10px 14px;
   font-weight: 600;
   color: var(--text);
@@ -451,38 +458,59 @@ textarea:focus { border-color: var(--text); }
   font-size: 0.7rem;
   text-transform: uppercase;
 }
-.timetable td {
+.cal-header-row .cal-day-header:first-of-type { border-left: 1px solid var(--border); }
+
+.cal-body {
+  position: relative;
+  display: flex;
   border: 1px solid var(--border);
-  padding: 0;
-  vertical-align: top;
-  min-width: 130px;
+  border-top: none;
+  /* One hairline every hour across the full width, gutter included --
+     simplest way to give every day column matching gridlines without
+     drawing them into each column separately. */
+  background-image: repeating-linear-gradient(
+    to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent var(--hour-h)
+  );
 }
-/* The time column only ever holds a short "08:30"-style label, but without
-   its own min-width it inherited the same 130px as a day column -- wasted
-   space that mattered a lot on a narrow screen. Pinning it via position:
-   sticky also means a student scrolling through the week horizontally
-   never loses track of which time row they're looking at. */
-.timetable td.time-cell {
-  background: var(--bg);
-  color: var(--muted2);
-  text-align: left;
-  font-size: 0.68rem;
-  padding: 12px 10px;
-  min-width: 56px;
+
+/* Same reasoning as the old pinned time column: keeps the hour labels in
+   view while a student scrolls sideways through the week on a phone. */
+.cal-gutter {
+  flex: 0 0 56px;
   position: sticky;
   left: 0;
+  background: var(--bg);
   z-index: 1;
+}
+.cal-hour-mark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  padding: 3px 10px 0;
+  font-size: 0.68rem;
+  color: var(--muted2);
   white-space: nowrap;
 }
 
-/* Class cards inside grid */
-.class-card {
-  padding: 10px 12px;
-  font-size: 0.7rem;
-  line-height: 1.5;
-  border-bottom: 1px solid var(--border);
+.cal-day-col {
+  flex: 1 0 130px;
+  position: relative;
+  border-left: 1px solid var(--border);
 }
-.class-card:last-child { border-bottom: none; }
+
+/* Class cards inside grid -- each one absolutely positioned by its real
+   start time and duration within its day column. */
+.class-card {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  padding: 6px 8px;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
 
 .class-name  { font-weight: 600; color: var(--text); }
 .class-type  { color: var(--muted2); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
@@ -558,7 +586,7 @@ pre.show { display: block; }
   .section { border: none; padding: 0; }
   /* A printed page doesn't scroll, so the horizontal-scroll affordance and
      the pinned time column (both mobile/viewport conveniences) would only
-     get in the way here -- let the table lay out at its natural width. */
+     get in the way here -- let the grid lay out at its natural width. */
   .timetable-wrapper { overflow-x: visible; }
-  .timetable td.time-cell { position: static; }
+  .cal-gutter { position: static; }
 }

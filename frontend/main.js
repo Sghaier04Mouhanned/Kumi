@@ -783,58 +783,87 @@ function selectResult(i) {
   renderResult();
 }
 
+// A fixed 08:00-18:00 covers a typical school day; stretched further only
+// if a real session falls outside it, so an outlier evening class never
+// gets clipped off instead of just making every week's grid taller.
+const CAL_DEFAULT_START_MIN = 8 * 60;
+const CAL_DEFAULT_END_MIN = 18 * 60;
+const CAL_PX_PER_MIN = 1.4;
+const CAL_MIN_CARD_HEIGHT = 32; // a floor so a very short class stays readable, not a sliver
+
+function _timeToMinutes(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function _classTypeLabel(courseType) {
+  const rawType = (courseType || '').toLowerCase().replace(/[()]/g, '').trim();
+  return rawType === 'l' || rawType.includes('lec') ? 'Lecture'
+    : rawType === 't' || rawType.includes('tut') ? 'Tutorial'
+    : rawType.includes('lab') ? 'Lab'
+    : rawType;
+}
+
 function renderCalendar(sessions) {
+  const timetableEl = document.getElementById('timetable');
+  if (!sessions.length) { timetableEl.innerHTML = ''; return; }
+
   const days = CORE_DAYS.filter((d) => true).concat(
     ['SAT', 'SUN'].filter((d) => sessions.some((s) => s.day === d))
   );
 
-  const grid = {};
+  let gridStart = CAL_DEFAULT_START_MIN;
+  let gridEnd = CAL_DEFAULT_END_MIN;
   sessions.forEach((s) => {
-    const key = `${s.day}|${s.time_start}`;
-    if (!grid[key]) grid[key] = [];
-    grid[key].push(s);
+    gridStart = Math.min(gridStart, Math.floor(_timeToMinutes(s.time_start) / 60) * 60);
+    gridEnd = Math.max(gridEnd, Math.ceil(_timeToMinutes(s.time_end) / 60) * 60);
   });
 
-  const slots = [...new Set(sessions.map((s) => s.time_start))].sort();
+  const hourHeight = 60 * CAL_PX_PER_MIN;
+  const totalHeight = (gridEnd - gridStart) * CAL_PX_PER_MIN;
 
-  let html = '<thead><tr><th>TIME</th>';
-  days.forEach((d) => (html += `<th>${d}</th>`));
-  html += '</tr></thead><tbody>';
+  let hourMarks = '';
+  for (let m = gridStart; m <= gridEnd; m += 60) {
+    const h = Math.floor(m / 60);
+    hourMarks += `<div class="cal-hour-mark" style="top:${(m - gridStart) * CAL_PX_PER_MIN}px">${String(h).padStart(2, '0')}:00</div>`;
+  }
 
-  slots.forEach((slot) => {
-    html += `<tr><td class="time-cell">${slot}</td>`;
-    days.forEach((day) => {
-      const entries = grid[`${day}|${slot}`] || [];
-      if (entries.length) {
-        html += '<td>';
-        entries.forEach((c) => {
-          const rawType = (c.course_type || '').toLowerCase().replace(/[()]/g, '').trim();
-          const typeLabel = rawType === 'l' || rawType.includes('lec') ? 'Lecture'
-            : rawType === 't' || rawType.includes('tut') ? 'Tutorial'
-            : rawType.includes('lab') ? 'Lab'
-            : rawType;
-          html += `
-            <div class="class-card">
-              <div class="class-name">${esc(c.course_name || c.course_code)}</div>
-              ${typeLabel ? `<div class="class-type">${esc(typeLabel)}</div>` : ''}
-              <div class="class-info">${esc(c.instructor_name || '—')}</div>
-              <div class="class-info">${c.time_start}–${c.time_end}</div>
-              <div style="display:flex;gap:4px;flex-wrap:wrap">
-                <span class="class-badge">${esc(c.group_number)}</span>
-                ${c.class_number ? `<span class="class-badge">${esc(c.class_number)}</span>` : ''}
-              </div>
-            </div>`;
-        });
-        html += '</td>';
-      } else {
-        html += '<td></td>';
-      }
+  let dayColumns = '';
+  days.forEach((day) => {
+    let events = '';
+    sessions.filter((s) => s.day === day).forEach((c) => {
+      const startMin = _timeToMinutes(c.time_start);
+      const endMin = _timeToMinutes(c.time_end);
+      const top = (startMin - gridStart) * CAL_PX_PER_MIN;
+      const height = Math.max((endMin - startMin) * CAL_PX_PER_MIN, CAL_MIN_CARD_HEIGHT);
+      const typeLabel = _classTypeLabel(c.course_type);
+      events += `
+        <div class="class-card" style="top:${top}px;height:${height}px">
+          <div class="class-name">${esc(c.course_name || c.course_code)}</div>
+          ${typeLabel ? `<div class="class-type">${esc(typeLabel)}</div>` : ''}
+          <div class="class-info">${esc(c.instructor_name || '—')}</div>
+          <div class="class-info">${c.time_start}–${c.time_end}</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <span class="class-badge">${esc(c.group_number)}</span>
+            ${c.class_number ? `<span class="class-badge">${esc(c.class_number)}</span>` : ''}
+          </div>
+        </div>`;
     });
-    html += '</tr>';
+    dayColumns += `<div class="cal-day-col">${events}</div>`;
   });
 
-  html += '</tbody>';
-  document.getElementById('timetable').innerHTML = html;
+  let dayHeaders = '';
+  days.forEach((d) => { dayHeaders += `<div class="cal-day-header">${d}</div>`; });
+
+  timetableEl.innerHTML = `
+    <div class="cal-header-row">
+      <div class="cal-gutter-header"></div>
+      ${dayHeaders}
+    </div>
+    <div class="cal-body" style="height:${totalHeight}px;--hour-h:${hourHeight}px">
+      <div class="cal-gutter">${hourMarks}</div>
+      ${dayColumns}
+    </div>`;
 }
 
 // =====================
