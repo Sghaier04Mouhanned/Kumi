@@ -21,7 +21,14 @@ from backend.reconcile import reconcile
 from normalize import merge_contiguous_sessions, normalize_schedule
 
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"}
-MAX_CONCURRENT_EXTRACTIONS = 3
+# Confirmed on a real 12-photo upload against the live deploy: even 3
+# concurrent Gemini calls was enough to trip the free tier's rate limit
+# repeatedly -- several photos exhausted their whole retry budget and
+# dropped out entirely, and the ones that did succeed took 60-90+ seconds
+# fighting through 429s. Serializing every call to Gemini is slower
+# end-to-end, but each individual call is far less likely to get
+# rate-limited in the first place.
+MAX_CONCURRENT_EXTRACTIONS = 1
 
 # Keyed by the exact bytes of the uploaded photo -- the same image is never
 # sent to the vision API twice. Repeated dev/test runs with the same file
@@ -119,10 +126,8 @@ async def extract_from_uploads(
 ) -> tuple[list[ClassSession], list[ExtractWarning], list[ReconcileSuggestion], str | None]:
     labels = group_labels or [""] * len(files)
 
-    # Confirmed on a real 10-photo upload: firing every photo at Gemini at
-    # once overwhelmed its free tier even with per-request retries (429s and
-    # 503s piling up). A small concurrency cap keeps a multi-photo upload
-    # from ever looking like a burst to begin with.
+    # See MAX_CONCURRENT_EXTRACTIONS above for why this is 1, not a larger
+    # number that would let a multi-photo upload run faster.
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTIONS)
 
     async def run(file: UploadFile, label: str):
