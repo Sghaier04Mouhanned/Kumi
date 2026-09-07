@@ -138,12 +138,12 @@ async function extractPhotos() {
 // decides whose catalog (if any) to check before anything else runs.
 // =====================
 const UNIVERSITY_STORAGE_KEY = 'kumi.university';
+let knownUniversities = []; // last fetched /api/universities list, reused by the fuzzy-match check below
 
 async function initUniversityStep() {
-  let universities = [];
   try {
     const res = await fetch('/api/universities');
-    if (res.ok) universities = await res.json();
+    if (res.ok) knownUniversities = await res.json();
   } catch (err) {
     console.error('Could not load university list:', err);
   }
@@ -153,12 +153,12 @@ async function initUniversityStep() {
     // Returning visit -- skip the picker, but only trust a saved id that a
     // published catalog actually recognizes; otherwise fall through to the
     // list so a stale/guessed id from a first-time upload doesn't stick.
-    const known = universities.find((u) => u.university_id === saved.id);
+    const known = knownUniversities.find((u) => u.university_id === saved.id);
     selectUniversity(saved.id, known ? known.university_name : saved.name, { skipSave: true });
     return;
   }
 
-  renderUniversityList(universities);
+  renderUniversityList(knownUniversities);
 }
 
 function readSavedUniversity() {
@@ -182,10 +182,83 @@ function renderUniversityList(universities) {
   });
 }
 
+// Character-bigram Dice coefficient -- catches typos, spacing, and
+// punctuation differences (e.g. "Tunis Buisness School" vs "Tunis Business
+// School"). Same spirit as the Python side's difflib.SequenceMatcher.ratio()
+// used for catalog-code/instructor-name matching, just implemented here
+// since this needs to run against the university list in the browser.
+function _bigrams(str) {
+  const s = str.toLowerCase().replace(/\s+/g, ' ').trim();
+  const grams = [];
+  for (let i = 0; i < s.length - 1; i++) grams.push(s.slice(i, i + 2));
+  return grams;
+}
+
+function _diceCoefficient(a, b) {
+  const bigramsA = _bigrams(a);
+  const bigramsB = _bigrams(b);
+  if (!bigramsA.length || !bigramsB.length) return a.toLowerCase() === b.toLowerCase() ? 1 : 0;
+  const counts = new Map();
+  bigramsA.forEach((g) => counts.set(g, (counts.get(g) || 0) + 1));
+  let matches = 0;
+  bigramsB.forEach((g) => {
+    const c = counts.get(g) || 0;
+    if (c > 0) { matches++; counts.set(g, c - 1); }
+  });
+  return (2 * matches) / (bigramsA.length + bigramsB.length);
+}
+
+// Separate check for the case Dice similarity can't catch on its own: an
+// initialism like "TBS" for "Tunis Business School" is nowhere near it
+// character-for-character, but is an exact, unambiguous match on first
+// letters.
+function _isAcronymMatch(typed, fullName) {
+  const cleanTyped = typed.replace(/[^a-zA-Z]/g, '').toUpperCase();
+  if (cleanTyped.length < 2) return false; // too short to mean anything -- avoid false positives
+  const acronym = fullName.split(/\s+/).filter(Boolean).map((w) => w[0]).join('').toUpperCase();
+  return cleanTyped === acronym;
+}
+
+const UNIVERSITY_FUZZY_MATCH_THRESHOLD = 0.6;
+
+function findUniversityMatch(typedName) {
+  let best = null;
+  let bestScore = 0;
+  knownUniversities.forEach((u) => {
+    const score = _diceCoefficient(typedName, u.university_name);
+    const acronym = _isAcronymMatch(typedName, u.university_name);
+    if (!acronym && score < UNIVERSITY_FUZZY_MATCH_THRESHOLD) return;
+    const effectiveScore = acronym ? Math.max(score, 0.99) : score;
+    if (effectiveScore > bestScore) {
+      bestScore = effectiveScore;
+      best = u;
+    }
+  });
+  return best;
+}
+
 function chooseUniversity() {
   const input = document.getElementById('university-input');
   const name = input.value.trim();
   if (!name) return;
+
+  // Typos, spacing/punctuation variants, and initialisms (e.g. "TBS" for
+  // "Tunis Business School") should land on the same existing catalog
+  // instead of silently starting a separate, empty one -- but a match is
+  // only ever a suggestion the student confirms, never applied silently,
+  // since guessing wrong here means showing them the wrong school's data.
+  const match = findUniversityMatch(name);
+  if (match && match.university_name.toLowerCase() !== name.toLowerCase()) {
+    const useExisting = confirm(
+      `Did you mean "${match.university_name}"? Click OK to use their already-published timetable, ` +
+      `or Cancel to set up "${name}" as a separate, new university.`
+    );
+    if (useExisting) {
+      selectUniversity(match.university_id, match.university_name);
+      return;
+    }
+  }
+
   // This id is only a client-side guess used to check for an existing
   // catalog -- if this university ends up publishing one, the server
   // settles on the real id (same slugify rule) at that point.
