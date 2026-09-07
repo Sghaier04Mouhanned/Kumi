@@ -97,7 +97,23 @@ async def extract_photo(content: bytes, mime_type: str) -> tuple[str | None, lis
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         for attempt in range(MAX_RETRIES + 1):
-            resp = await client.post(url, headers=headers, json=payload)
+            # Confirmed on a real deploy under heavy load: Gemini can be slow
+            # enough to trip the 60s client timeout before ever returning a
+            # response at all, not just return a 429/503. That's a network
+            # exception, not an HTTP status, so it was skipping the retry
+            # logic entirely -- and its own message stringifies to nothing
+            # useful (an empty string for a plain timeout), producing a
+            # blank, undiagnosable warning. Treat it exactly like a
+            # retryable status instead of letting it escape uncaught.
+            try:
+                resp = await client.post(url, headers=headers, json=payload)
+            except httpx.TimeoutException:
+                if attempt < MAX_RETRIES:
+                    wait = BASE_BACKOFF_SECONDS * (2 ** attempt) + random.uniform(0, 1.5)
+                    await asyncio.sleep(min(wait, 30.0))
+                    continue
+                raise RuntimeError(f"Gemini request timed out after {MAX_RETRIES + 1} attempts")
+
             if resp.status_code in RETRYABLE_STATUS_CODES and attempt < MAX_RETRIES:
                 retry_after = resp.headers.get("retry-after")
                 wait = float(retry_after) if retry_after else BASE_BACKOFF_SECONDS * (2 ** attempt)

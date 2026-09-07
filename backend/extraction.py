@@ -144,7 +144,11 @@ async def extract_from_uploads(
 
     for file, result in zip(files, raw_results):
         if isinstance(result, Exception):
-            warnings.append(ExtractWarning(filename=file.filename or "unknown", message=str(result)))
+            # Some exceptions (a plain timeout, for one) stringify to an
+            # empty string -- fall back to the exception's type name so the
+            # warning is never just blank and undiagnosable.
+            message = str(result) or type(result).__name__
+            warnings.append(ExtractWarning(filename=file.filename or "unknown", message=message))
             continue
 
         group_number, schedule = result
