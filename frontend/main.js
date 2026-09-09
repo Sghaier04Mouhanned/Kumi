@@ -120,44 +120,88 @@ function renderFileList() {
   document.getElementById('extract-btn').disabled = uploadedFiles.length === 0;
 }
 
+// A real semester's worth of photos (every group across every level) can
+// be 50+ files -- sent as one request, that's minutes of sequential Gemini
+// calls sitting behind a single HTTP round trip, which is a timeout
+// waiting to happen (browser, Render's proxy, or Cloudflare in front of
+// it) with nothing at all coming back if it gets killed mid-flight.
+// Chunking into small sequential requests means a stall only ever costs
+// one chunk, and the review table can fill in progressively instead of
+// staying blank until the very last photo finishes.
+const EXTRACT_BATCH_SIZE = 5;
+
 async function extractPhotos() {
   if (!uploadedFiles.length) return;
   const btn = document.getElementById('extract-btn');
   const loading = document.getElementById('extract-loading');
+  const loadingText = document.getElementById('extract-loading-text');
   hideError('upload-error');
   btn.disabled = true;
   loading.classList.add('show');
 
-  const formData = new FormData();
-  uploadedFiles.forEach((entry) => formData.append('files', entry.file));
-  formData.append('group_labels', JSON.stringify(uploadedFiles.map((entry) => entry.groupLabel)));
+  const batches = [];
+  for (let i = 0; i < uploadedFiles.length; i += EXTRACT_BATCH_SIZE) {
+    batches.push(uploadedFiles.slice(i, i + EXTRACT_BATCH_SIZE));
+  }
+
+  const allWarnings = [];
+  let allSuggestions = [];
+  let lastReconcileNote = null;
 
   try {
-    const res = await fetch('/api/extract', { method: 'POST', body: formData });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(Array.isArray(data.detail) ? data.detail.join('; ') : (data.detail || 'Extraction failed.'));
+    for (let b = 0; b < batches.length; b++) {
+      loadingText.textContent = batches.length > 1
+        ? `Reading photos… (batch ${b + 1} of ${batches.length})`
+        : 'Reading photos…';
+
+      const batch = batches[b];
+      const formData = new FormData();
+      batch.forEach((entry) => formData.append('files', entry.file));
+      formData.append('group_labels', JSON.stringify(batch.map((entry) => entry.groupLabel)));
+
+      const res = await fetch('/api/extract', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        // A batch failing outright (as opposed to one photo inside it
+        // producing a warning) still shouldn't discard whatever earlier
+        // batches already landed in reviewRows -- surface it and stop,
+        // rather than throwing everything away.
+        const detail = Array.isArray(data.detail) ? data.detail.join('; ') : (data.detail || 'Extraction failed.');
+        throw new Error(batches.length > 1 ? `Batch ${b + 1} of ${batches.length}: ${detail}` : detail);
+      }
+
+      // Append rather than replace -- if a shared catalog is already
+      // loaded, newly uploaded photos (e.g. a missing group) add to it
+      // instead of discarding it. Same reasoning applies across batches.
+      reviewRows = reviewRows.concat(data.classes.map((c) => ({ id: rowIdCounter++, ...c })));
+      if (data.warnings) allWarnings.push(...data.warnings);
+      if (data.suggestions) allSuggestions = allSuggestions.concat(data.suggestions);
+      if (data.reconcile_note) lastReconcileNote = data.reconcile_note;
+
+      // Render as each batch lands rather than only once at the very end,
+      // so a long multi-batch upload visibly makes progress instead of
+      // looking stuck.
+      renderReviewTable();
     }
 
-    // Append rather than replace -- if a shared catalog is already loaded,
-    // newly uploaded photos (e.g. a missing group) add to it instead of
-    // discarding it.
-    reviewRows = reviewRows.concat(data.classes.map((c) => ({ id: rowIdCounter++, ...c })));
-
     const warnBox = document.getElementById('extract-warnings');
-    if (data.warnings && data.warnings.length) {
+    if (allWarnings.length) {
       warnBox.classList.add('show');
       warnBox.innerHTML = `<span class="alert-icon">${ICON_INFO}</span><span style="flex:1">` +
-        data.warnings.map((w) => `${esc(w.filename)}: ${esc(w.message)}`).join('<br>') + '</span>';
+        allWarnings.map((w) => `${esc(w.filename)}: ${esc(w.message)}`).join('<br>') + '</span>';
     } else {
       warnBox.classList.remove('show');
     }
 
-    renderReconcileNote(data.reconcile_note);
+    renderReconcileNote(lastReconcileNote);
 
-    currentSuggestions = data.suggestions || [];
+    // Each batch only gets AI cleanup run against its own photos, so a
+    // duplicate that only shows up when comparing photo #3 to photo #47
+    // (different batches) won't be caught automatically here -- "Retry AI
+    // Cleanup" in the review step re-runs cleanup against the FULL
+    // combined dataset and will catch that instead.
+    currentSuggestions = allSuggestions;
     renderSuggestions();
-    renderReviewTable();
     document.getElementById('review-section').style.display = 'block';
     setStep(2);
   } catch (err) {
@@ -165,6 +209,7 @@ async function extractPhotos() {
   } finally {
     btn.disabled = false;
     loading.classList.remove('show');
+    loadingText.textContent = 'Reading photos…';
   }
 }
 
