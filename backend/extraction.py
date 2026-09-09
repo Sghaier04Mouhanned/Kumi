@@ -29,6 +29,7 @@ IMAGE_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/gif", "ima
 # end-to-end, but each individual call is far less likely to get
 # rate-limited in the first place.
 MAX_CONCURRENT_EXTRACTIONS = 1
+PHOTO_PACING_SECONDS = 3.0
 
 # Keyed by the exact bytes of the uploaded photo -- the same image is never
 # sent to the vision API twice. Repeated dev/test runs with the same file
@@ -133,9 +134,20 @@ async def extract_from_uploads(
     async def run(file: UploadFile, label: str):
         async with semaphore:
             try:
-                return await _extract_one(file, label)
+                result = await _extract_one(file, label)
             except Exception as exc:  # noqa: BLE001 - surfaced to the caller as a per-file warning
-                return exc
+                result = exc
+            # Confirmed against Google AI Studio's own usage dashboard: the
+            # error rate spikes line up exactly with bursts of activity and
+            # recover within minutes right after -- a short rate-limit
+            # window, not a hard daily quota. Serializing calls stops
+            # concurrent bursts, but a fast, successful call was still
+            # immediately followed by the next one with zero gap. This
+            # keeps a multi-photo upload paced even when every call
+            # succeeds on the first try and would otherwise have no reason
+            # to pause at all.
+            await asyncio.sleep(PHOTO_PACING_SECONDS)
+            return result
 
     raw_results = await asyncio.gather(*(run(f, label) for f, label in zip(files, labels)))
 
