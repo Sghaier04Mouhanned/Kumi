@@ -120,6 +120,19 @@ def publish_catalog(request: PublishCatalogRequest) -> SharedCatalog:
     )
 
 
+@app.delete("/api/catalog/{university_id}")
+def delete_catalog(university_id: str, token: str) -> dict[str, str]:
+    """Removes a published catalog -- for clearing out a test or mistaken
+    publish. Same admin-token gate as publishing; there's no undo."""
+    if not settings.admin_token:
+        raise HTTPException(status_code=403, detail="Deleting is disabled (no admin token configured).")
+    if not hmac.compare_digest(token, settings.admin_token):
+        raise HTTPException(status_code=403, detail="Invalid admin token.")
+    if not catalog_store.delete_catalog(university_id):
+        raise HTTPException(status_code=404, detail=f"No catalog published for '{university_id}'.")
+    return {"status": "deleted", "university_id": university_id}
+
+
 # Matches the frontend's own cap (kept here too since a request can bypass
 # the UI entirely) -- a realistic max course load, not an arbitrary number.
 MAX_SELECTED_COURSES = 7

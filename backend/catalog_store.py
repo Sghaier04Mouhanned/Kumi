@@ -61,6 +61,18 @@ def save_catalog(
     return catalog
 
 
+def delete_catalog(university_id: str) -> bool:
+    """Returns True if a catalog existed and was removed, False if there was
+    nothing to delete. Used for cleaning up a test/wrong publish -- there's
+    no undo, so the caller (the admin-token-gated endpoint) is the only
+    thing that should ever call this."""
+    path = _path(university_id)
+    if not path.exists():
+        return False
+    path.unlink()
+    return True
+
+
 def list_universities() -> list[UniversitySummary]:
     """Every university with a published (non-empty) catalog -- lets the
     frontend offer a pick list instead of every student having to type
