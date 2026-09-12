@@ -47,22 +47,34 @@ def _cache_path(content: bytes) -> Path:
 EXPECTED_COURSE_MINUTES = 180
 
 
-def _is_tutorial(course_type: str | None) -> bool:
-    if not course_type:
-        return False
-    t = course_type.strip().lower()
-    return "tut" in t or t in ("(t)", "t")
-
-
 def _minutes(time_str: str) -> int:
     hours, mins = time_str.split(":")
     return int(hours) * 60 + int(mins)
 
 
+# Confirmed on real data: gemini-3.5-flash-lite leaves course_type blank
+# more often than the full model did, and a blank type used to make this
+# check treat the session as a lecture by default -- so a genuine tutorial
+# with no type label got counted toward the "should total 3h" expectation
+# alongside its course's real lecture, producing a false "session may be
+# missing or misread" warning on data that was actually fine. Falling back
+# to duration when the type is blank (TBS tutorials run ~1.5h, lectures
+# run a full 3h) fixes that without ever touching the course_type shown to
+# the student -- this only affects this heuristic's own bookkeeping.
+PROBABLE_TUTORIAL_MAX_MINUTES = 105
+
+
+def _is_tutorial(item: ClassSession) -> bool:
+    if item.course_type:
+        t = item.course_type.strip().lower()
+        return "tut" in t or t in ("(t)", "t")
+    return _minutes(item.time_end) - _minutes(item.time_start) <= PROBABLE_TUTORIAL_MAX_MINUTES
+
+
 def _validate_durations(classes: list[ClassSession]) -> list[ExtractWarning]:
     groups: dict[tuple[str, str], list[ClassSession]] = defaultdict(list)
     for item in classes:
-        if _is_tutorial(item.course_type):
+        if _is_tutorial(item):
             continue
         groups[(item.course_code, item.group_number)].append(item)
 
