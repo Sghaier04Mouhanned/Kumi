@@ -49,6 +49,8 @@ header {
 }
 .header-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .header-actions { text-align: right; }
+.logo-row { display: flex; align-items: center; gap: 10px; }
+.logo-mark rect { fill: var(--text); }
 .logo { font-weight: 700; font-size: 1.7rem; letter-spacing: -0.4px; line-height: 1; }
 .logo-sub { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
 .badge { font-size: 0.75rem; color: var(--muted); }
