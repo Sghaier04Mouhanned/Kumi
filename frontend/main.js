@@ -54,6 +54,19 @@ function showConfirm(message) {
   return new Promise((resolve) => {
     _confirmResolve = resolve;
     confirmMessageEl.textContent = message;
+    document.getElementById('confirm-cancel-btn').style.display = '';
+    confirmOverlay.classList.add('show');
+  });
+}
+
+// Same modal, but for a plain notice with nothing to actually confirm (e.g.
+// "publish succeeded") -- a Cancel button next to that reads as if there's
+// a decision to make, so this hides it and leaves just OK.
+function showAlert(message) {
+  return new Promise((resolve) => {
+    _confirmResolve = resolve;
+    confirmMessageEl.textContent = message;
+    document.getElementById('confirm-cancel-btn').style.display = 'none';
     confirmOverlay.classList.add('show');
   });
 }
@@ -361,14 +374,27 @@ function showUploadForMissingGroup() {
   setStep(1);
 }
 
-async function publishCatalog() {
+function openPublishModal() {
   if (!reviewRows.length) { alert('Nothing to publish yet.'); return; }
-  const token = prompt('Admin token:');
-  if (!token) return;
-  const semester_label = prompt('Label for this data (e.g. "Fall 2026-27"), or leave blank:') || null;
+  document.getElementById('publish-university-name').textContent = currentUniversity.name;
+  document.getElementById('publish-token-input').value = '';
+  document.getElementById('publish-label-input').value = '';
+  hideError('publish-error');
+  document.getElementById('publish-overlay').classList.add('show');
+}
 
-  const btn = document.getElementById('publish-catalog-btn');
+function closePublishModal() {
+  document.getElementById('publish-overlay').classList.remove('show');
+}
+
+async function submitPublish() {
+  const token = document.getElementById('publish-token-input').value;
+  if (!token) { showError('publish-error', 'Admin token is required.'); return; }
+  const semester_label = document.getElementById('publish-label-input').value.trim() || null;
+
+  const btn = document.getElementById('publish-confirm-btn');
   btn.disabled = true;
+  hideError('publish-error');
   try {
     const res = await fetch('/api/catalog', {
       method: 'POST',
@@ -383,9 +409,13 @@ async function publishCatalog() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Publish failed.');
-    alert(`Published as ${currentUniversity.name}'s shared catalog (${data.classes.length} sessions). Other students at your school loading the app now will see this instead of the upload flow.`);
+    closePublishModal();
+    await showAlert(
+      `Published as ${currentUniversity.name}'s shared catalog (${data.classes.length} sessions). ` +
+      'Other students at this university loading the app now will see this instead of the upload flow.'
+    );
   } catch (err) {
-    alert('Publish failed: ' + err.message);
+    showError('publish-error', err.message);
   } finally {
     btn.disabled = false;
   }

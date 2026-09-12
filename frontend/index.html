@@ -115,7 +115,7 @@
     <div class="btn-row" style="margin-top:14px">
       <button class="btn-secondary" onclick="addReviewRow()">+ Add Row</button>
       <button class="btn" onclick="confirmReview()">Confirm Data →</button>
-      <button class="btn-secondary" onclick="publishCatalog()" id="publish-catalog-btn" style="margin-left:auto">Publish to Shared Catalog</button>
+      <button class="btn-secondary" onclick="openPublishModal()" id="publish-catalog-btn" style="margin-left:auto">Publish to Shared Catalog</button>
     </div>
   </div>
 
@@ -228,6 +228,32 @@
     <div class="btn-row" style="margin-top:22px;justify-content:flex-end">
       <button class="btn-secondary" onclick="closeCalendarExport()">Cancel</button>
       <button class="btn" onclick="downloadCalendarFile()">Download .ics</button>
+    </div>
+  </div>
+</div>
+
+<!-- Publish -- asks for the admin token that gates writing the shared
+     catalog, and an optional label for this semester's data. -->
+<div class="modal-overlay" id="publish-overlay">
+  <div class="modal">
+    <div class="modal-message">
+      Publish this as <strong id="publish-university-name"></strong>'s shared catalog. Other students at this
+      university loading the app will see it instead of the upload flow.
+    </div>
+    <div style="margin-top:16px">
+      <label style="display:block;font-size:0.78rem;color:var(--muted)">
+        Admin token
+        <input type="password" id="publish-token-input" style="width:100%;margin-top:6px" autocomplete="off"/>
+      </label>
+      <label style="display:block;font-size:0.78rem;color:var(--muted);margin-top:12px">
+        Semester label (optional)
+        <input type="text" id="publish-label-input" placeholder="e.g. Fall 2026-27" style="width:100%;margin-top:6px"/>
+      </label>
+    </div>
+    <div class="alert alert--danger" id="publish-error" style="margin-top:12px"></div>
+    <div class="btn-row" style="margin-top:22px;justify-content:flex-end">
+      <button class="btn-secondary" onclick="closePublishModal()">Cancel</button>
+      <button class="btn" id="publish-confirm-btn" onclick="submitPublish()">Publish</button>
     </div>
   </div>
 </div>
